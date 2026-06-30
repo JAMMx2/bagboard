@@ -1,0 +1,9 @@
+# OS
+.DS_Store
+Thumbs.db
+# tooling
+node_modules/
+*.log
+# local user data / backups (never commit a real pipeline)
+bagboard-backup-*.json
+bagboard-leads-*.csv
