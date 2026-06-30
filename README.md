@@ -2,8 +2,8 @@
 
 A call CRM for people who dial for a living. One HTML file. No login, no servers,
 no monthly bill - your leads live in your own browser and you call them from your
-own phone. Built for life-insurance tele-sales (Final Expense, Mortgage Protection,
-IUL, Term), but it works for any list you have to work down by phone.
+own phone. Works for any kind of phone outreach: sales, follow-ups, scheduling,
+collections — anything you work down a list to do.
 
 ## What it does
 - Lines up who to call next and runs you through them one at a time - number, outcome, next.

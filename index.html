@@ -343,7 +343,7 @@ const NPC={ name:"Vinny",
     if(t&&dials>=t) return `${dials} dials today — target hit. Every extra call now is upside.`;
     return `${dials} of ${t} dials done. ${q.length} queued — keep the rhythm going.`; },
   text(l,ocId){ const tpl=S.textTemplates[ocId]||S.textTemplates.generic;
-    return tpl.replace(/\{first\}/g,l.first||"there").replace(/\{last\}/g,l.last||"").replace(/\{agent\}/g,S.agent||"me").replace(/\{product\}/g,l.product||"coverage"); }
+    return tpl.replace(/\{first\}/g,l.first||"there").replace(/\{last\}/g,l.last||"").replace(/\{agent\}/g,S.agent||"me").replace(/\{product\}/g,l.product||"your offer"); }
 };
 
 /* ---------- derived stats ---------- */
@@ -698,7 +698,7 @@ function leadForm(l){ l=l||{};
   return `<h2>${l.id?"Edit lead":"New lead"}</h2>
   <div class="row" style="gap:10px"><div class="field grow"><label>First name</label><input id="f-first" value="${esc(l.first||"")}"/></div><div class="field grow"><label>Last name</label><input id="f-last" value="${esc(l.last||"")}"/></div></div>
   <div class="field"><label>Phone</label><input id="f-phone" type="tel" value="${esc(l.phone||"")}" placeholder="555-123-4567"/></div>
-  <div class="row" style="gap:10px"><div class="field grow"><label>Product / interest</label><input id="f-product" value="${esc(l.product||"")}" placeholder="Final Expense"/></div><div class="field grow"><label>Value $</label><input id="f-value" type="number" value="${l.value||""}" placeholder="1200"/></div></div>
+  <div class="row" style="gap:10px"><div class="field grow"><label>Product / interest</label><input id="f-product" value="${esc(l.product||"")}" placeholder="Product or service"/></div><div class="field grow"><label>Value $</label><input id="f-value" type="number" value="${l.value||""}" placeholder="1200"/></div></div>
   <div class="field"><label>Appointment (optional)</label><input id="f-appt" type="datetime-local" value="${toLocalInput(l.apptAt)}"/></div>
   <div class="row" style="gap:10px"><div class="field grow"><label>Source</label><input id="f-source" value="${esc(l.source||"")}" placeholder="Facebook, referral…"/></div><div class="field grow"><label>Company</label><input id="f-company" value="${esc(l.company||"")}"/></div></div>
   <button class="btn btn-primary btn-block btn-lg" data-act="${l.id?"updatelead":"createlead"}" data-id="${l.id||""}">${l.id?"Save":"Add lead"}</button>`;
@@ -729,9 +729,9 @@ function noteSheet(id){ sheet(`<h2>Add note</h2><div class="field"><textarea id=
 /* ---------- import ---------- */
 function importSheet(){ return `<h2>Paste leads</h2>
   <div class="tiny muted" style="margin-bottom:12px">One per line: <b>First, Last, Phone, Product, Value</b> (only first + phone required). Tabs or commas both work.</div>
-  <div class="field"><textarea id="imp" style="min-height:150px" placeholder="Maria, Lopez, 555-201-7788, Final Expense, 1200
+  <div class="field"><textarea id="imp" style="min-height:150px" placeholder="Maria, Lopez, 555-201-7788, Premium Plan, 1200
 James, 555-330-1199
-Tara Wells, 555-887-2231, IUL"></textarea></div>
+Tara Wells, 555-887-2231, Pro Plan"></textarea></div>
   <button class="btn btn-primary btn-block btn-lg" data-act="doimport">Import</button>`; }
 function parseCSV(text){ const rows=[]; let row=[],cur="",q=false;
   for(let i=0;i<text.length;i++){ const ch=text[i];
@@ -770,9 +770,9 @@ function dedupe(){ const seen={}; let removed=0; const keep=[];
   if(removed){ S.leads=keep; save(); render(); toast(`Removed ${removed} duplicate${removed>1?"s":""}.`); } else toast("No duplicate numbers found."); closeSheet(); }
 
 /* ---------- sample ---------- */
-function loadSample(){ const s=[["Margaret","Holloway","555-207-4419","Final Expense",1850,"appt"],["DeShawn","Bridges","555-884-0317","Keyman",6400,"quoted"],
-  ["Priya","Ramaswamy","555-412-9087","Mortgage Protection",1200,"callback"],["Earl","Stoker","555-661-2231","Final Expense",950,"contacted"],
-  ["Hector","Nunez","555-220-4488","Keyman",3200,"new"],["Wanda","Kim","555-770-1118","Final Expense",1100,"callback"]];
+function loadSample(){ const s=[["Margaret","Holloway","555-207-4419","Premium Plan",1850,"appt"],["DeShawn","Bridges","555-884-0317","Enterprise",6400,"quoted"],
+  ["Priya","Ramaswamy","555-412-9087","Annual Plan",1200,"callback"],["Earl","Stoker","555-661-2231","Premium Plan",950,"contacted"],
+  ["Hector","Nunez","555-220-4488","Enterprise",3200,"new"],["Wanda","Kim","555-770-1118","Premium Plan",1100,"callback"]];
   s.forEach((r,i)=>{ const l=newLead({first:r[0],last:r[1],phone:r[2],product:r[3],value:r[4],source:"Sample",stage:r[5]});
     if(r[5]==="callback") l.nextFollowUp=new Date(Date.now()-2*HOUR).toISOString();
     if(r[5]==="appt") l.apptAt=new Date(Date.now()+1*DAY+3*HOUR).toISOString();
