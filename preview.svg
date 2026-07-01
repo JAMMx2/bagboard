@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="660" viewBox="0 0 1080 660" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif">
+<rect width="1080" height="660" rx="20" fill="#0A0C10"/>
+<text x="60" y="150" fill="#E9ECF1" font-size="46" font-weight="700" letter-spacing="-1">BagBoard</text>
+<text x="62" y="192" fill="#8A95A2" font-size="19">A single-file call CRM.</text>
+<text x="62" y="220" fill="#8A95A2" font-size="19">No login. No servers. No fees.</text>
+<text x="62" y="300" fill="#525C68" font-size="15">Daily-goal ring · streaks · momentum</text>
+<text x="62" y="326" fill="#525C68" font-size="15">Search · agenda · stats · CSV in/out</text>
+<text x="62" y="352" fill="#525C68" font-size="15">Runs in any browser, offline.</text>
+<rect x="330" y="40" width="420" height="590" rx="26" fill="#0F141A" stroke="#1B212A"/>
+<text x="356" y="86" fill="#8A95A2" font-size="13" font-weight="600" letter-spacing="2">BAGBOARD</text>
+<circle cx="680" cy="81" r="4" fill="#34C759"/>
+<text x="692" y="86" fill="#34C759" font-size="12.5" font-weight="600">7 day streak</text>
+<circle cx="426" cy="190" r="46" fill="none" stroke="#1B212A" stroke-width="9"/>
+<circle cx="426" cy="190" r="46" fill="none" stroke="#34C759" stroke-width="9" stroke-linecap="round" stroke-dasharray="173.4 289.0" transform="rotate(-90 426 190)"/>
+<text x="426" y="192" fill="#E9ECF1" font-size="30" font-weight="700" text-anchor="middle">18</text>
+<text x="426" y="212" fill="#525C68" font-size="10" letter-spacing="1" text-anchor="middle">OF 30</text>
+<text x="510" y="158" fill="#525C68" font-size="11" letter-spacing="2">DAILY GOAL</text>
+<text x="510" y="186" fill="#E9ECF1" font-size="19" font-weight="600">12 to go</text>
+<text x="510" y="210" fill="#34C759" font-size="13">On pace · keep going</text>
+<text x="510" y="236" fill="#34C759" font-size="12" font-weight="600">● 4 in a row</text>
+<line x1="356" y1="265" x2="724" y2="265" stroke="#1B212A"/>
+<text x="356" y="293" fill="#525C68" font-size="11">Banked today</text>
+<text x="356" y="319" fill="#34C759" font-size="22" font-weight="700">$2,300</text>
+<text x="506" y="293" fill="#525C68" font-size="11">Pipeline</text>
+<text x="506" y="319" fill="#E9ECF1" font-size="22" font-weight="700">$18,400</text>
+<text x="356" y="357" fill="#525C68" font-size="11" font-weight="600" letter-spacing="1">VINNY</text>
+<text x="356" y="377" fill="#8A95A2" font-size="12.5">5 follow-ups due, 2 leads hot.</text>
+<text x="356" y="395" fill="#8A95A2" font-size="12.5">Start there.</text>
+<rect x="356" y="415" width="368" height="42" rx="10" fill="#34C759"/>
+<text x="540.0" y="442" fill="#04231A" font-size="14.5" font-weight="700" text-anchor="middle">Start calling · 12 queued</text>
+<text x="356" y="485" fill="#525C68" font-size="11" letter-spacing="2">UP NEXT</text>
+<circle cx="360" cy="515" r="4" fill="#34C759"/>
+<text x="376" y="513" fill="#E9ECF1" font-size="14" font-weight="500">Margaret Holloway</text>
+<text x="376" y="531" fill="#525C68" font-size="11">Premium Plan · due now</text>
+<text x="724" y="513" fill="#8A95A2" font-size="13" font-weight="600" text-anchor="end">$1,850</text>
+<line x1="356" y1="545" x2="724" y2="545" stroke="#1B212A"/>
+<circle cx="360" cy="563" r="4" fill="#C9A86A"/>
+<text x="376" y="561" fill="#E9ECF1" font-size="14" font-weight="500">Priya Ramaswamy</text>
+<text x="376" y="579" fill="#525C68" font-size="11">Annual Plan · 2h</text>
+<text x="724" y="561" fill="#8A95A2" font-size="13" font-weight="600" text-anchor="end">$1,200</text>
+<line x1="356" y1="593" x2="724" y2="593" stroke="#1B212A"/>
+<circle cx="360" cy="611" r="4" fill="#525C68"/>
+<text x="376" y="609" fill="#E9ECF1" font-size="14" font-weight="500">DeShawn Bridges</text>
+<text x="376" y="627" fill="#525C68" font-size="11">Enterprise · quoted</text>
+<text x="724" y="609" fill="#8A95A2" font-size="13" font-weight="600" text-anchor="end">$6,400</text>
+<line x1="356" y1="641" x2="724" y2="641" stroke="#1B212A"/>
+<text x="372.0" y="600" fill="#E9ECF1" font-size="11" text-anchor="middle">Home</text>
+<text x="456.0" y="600" fill="#525C68" font-size="11" text-anchor="middle">Leads</text>
+<text x="540.0" y="600" fill="#525C68" font-size="11" text-anchor="middle">Call</text>
+<text x="624.0" y="600" fill="#525C68" font-size="11" text-anchor="middle">Agenda</text>
+<text x="708.0" y="600" fill="#525C68" font-size="11" text-anchor="middle">Stats</text>
+</svg>
