@@ -186,6 +186,13 @@ a{color:var(--acc);}
 .sw.on{background:var(--acc);}
 .sw i{position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:var(--t2);transition:.15s;}
 .sw.on i{left:21px;background:#04231A;}
+.rapidnum{font-size:40px;font-weight:750;letter-spacing:-.02em;color:var(--t1);background:none;border:none;padding:6px 10px;font-variant-numeric:tabular-nums;cursor:pointer;}
+.rapidnum:active{color:var(--acc);}
+.rapidq{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;}
+.rapidq .oc{position:relative;flex-direction:column;justify-content:center;text-align:center;padding:11px 4px;font-size:11px;gap:5px;}
+.rapidq .oc .kbd{position:absolute;top:4px;right:6px;font-size:9px;color:var(--t4);}
+.chipbtn{background:none;border:1px solid var(--ln2);color:var(--t2);border-radius:8px;padding:5px 11px;font-size:12px;}
+.chipbtn.on{border-color:var(--acc);color:var(--acc);background:rgba(52,199,89,.08);}
 </style>
 </head>
 <body>
@@ -262,6 +269,7 @@ function fmtWhen(iso){ const d=new Date(iso); const diff=Math.round((startOfDay(
 
 /* ---------- platform + clipboard (desktop hand-dial) ---------- */
 const IS_DESKTOP=!/Android|iPhone|iPad|iPod|Mobile|Silk|Kindle|Windows Phone/i.test(navigator.userAgent||"");
+const SHARE_URL=(window.BB_SHARE)?window.BB_SHARE:((location.protocol==="http:"&&location.hostname&&!/^(localhost|127\.|0\.0\.0\.0|::1)/.test(location.hostname))?location.origin+"/":null);
 const CALL_LBL=IS_DESKTOP?"Copy number":"Call";
 const TEXT_LBL=IS_DESKTOP?"Copy text":"Text";
 function copyText(str,okMsg){ str=String(str==null?"":str); let done=false;
@@ -379,8 +387,8 @@ function log(l,outcome,amt){ S.calls.unshift({at:new Date().toISOString(),leadId
 
 /* ============================================================ RENDER ============================================================ */
 function render(){ recompute(); save(); const app=document.getElementById("app");
-  if(session){ renderDialer(); return; }
-  document.getElementById("overlay").innerHTML="";
+  if(session){ if(session.mode==="rapid") renderRapid(); else renderDialer(); return; }
+  document.getElementById("overlay").innerHTML=""; document.onkeydown=null;
   let body="";
   if(screen==="dashboard") body=viewDashboard();
   else if(screen==="leads") body=viewLeads();
@@ -435,6 +443,8 @@ function viewDashboard(){
   </div>
   <div class="coach" style="margin-top:16px"><div class="av">V</div><div class="grow"><div class="nm">${NPC.name}</div><div class="msg">${NPC.coach()}</div></div></div>
   <button class="btn btn-primary btn-block btn-lg" data-act="session" style="margin-top:16px">Start calling${q.length?` · ${q.length} queued`:""}</button>
+  <button class="btn btn-block" data-act="rapid" style="margin-top:10px">⚡ Rapid dial — blitz the list</button>
+  <button class="btn btn-block" data-act="connectphone" style="margin-top:10px">📱 Use it on your phone</button>
   ${q.length?`<div class="lab" style="margin:18px 0 8px">Up next</div><div class="card">${q.slice(0,5).map(l=>leadRow(l)).join("")}</div>`:`<div class="empty" style="margin-top:18px"><div class="em">○</div>No leads yet.<br><br><button class="btn btn-primary btn-sm" data-act="addmenu">Add leads</button></div>`}
   `;
 }
@@ -609,6 +619,7 @@ function viewSettings(){ const tt=S.textTemplates;
     ${[["vm","Voicemail follow-up"],["callback","Callback"],["appt","Appointment"],["quote","Quote sent"],["na","No answer"],["won","Closed won"],["generic","Generic"]].map(([k,lb])=>`<div class="field"><label>${lb}</label><textarea data-tpl="${k}">${esc(tt[k]||"")}</textarea></div>`).join("")}
   </div>
   <button class="btn btn-primary btn-block btn-lg" data-act="savesettings" style="margin-top:13px">Save settings</button>
+  <div class="card" style="margin-top:16px"><div class="lab" style="margin-bottom:10px">Your phone</div><button class="btn btn-block btn-sm" data-act="connectphone">📱 Use BagBoard on your phone</button><div class="tiny muted" style="margin-top:8px;line-height:1.5">Open it on your phone (same Wi-Fi) and dial straight from there. Requires starting in Wi-Fi mode.</div></div>
   <div class="card" style="margin-top:16px"><div class="lab" style="margin-bottom:10px">Data (stays on this device)</div>
     <div class="row" style="gap:10px"><button class="btn btn-block btn-sm" data-act="importcsv">Import CSV file</button><button class="btn btn-block btn-sm" data-act="importpaste">Paste a list</button></div>
     <div class="row" style="gap:10px;margin-top:10px"><button class="btn btn-block btn-sm" data-act="exportcsv">Export CSV</button><button class="btn btn-block btn-sm" data-act="backupfile">Download backup</button></div>
@@ -627,7 +638,42 @@ function viewSettings(){ const tt=S.textTemplates;
 /* ============================================================ POWER SESSION ============================================================ */
 function startSession(){ const q=NPC.queue(); if(!q.length){ toast("No callable leads. Add or import some first."); return; }
   session={ids:q.map(l=>l.id),idx:0,dials:0,contacts:0,appts:0,combo:0,start:Date.now()}; Sound.play("start"); render(); }
-function endSession(){ session=null; render(); }
+function endSession(){ if(session){ clearTimeout(session._t); } document.onkeydown=null; session=null; render(); }
+function startRapid(){ const q=NPC.queue(); if(!q.length){ toast("No callable leads. Add or import some first."); return; }
+  session={ids:q.map(l=>l.id),idx:0,dials:0,contacts:0,appts:0,combo:0,start:Date.now(),mode:"rapid",auto:0}; Sound.play("start"); render(); }
+function rapidNext(id){ if(!session) return; clearTimeout(session._t); const l=S.leads.find(x=>x.id===session.ids[session.idx]);
+  if(l){ if(id==="_next"){ log(l,"_dialed"); }
+    else { const oc={id,label:OC_LABEL[id]||id}; NPC.applyOutcome(l,oc); log(l,id,id==="won"?(l.value||0):0);
+      if(CONTACT.includes(id)){ session.contacts++; session.combo=(session.combo||0)+1; bumpStreak(); } else session.combo=0; if(id==="appt") session.appts++; }
+    session.dials++; Sound.play(CONTACT.includes(id)?"contact":"tick"); }
+  save(); session.idx++; if(session.idx>=session.ids.length) session.done=true; renderRapid(); }
+function renderRapid(){ if(session._t) clearTimeout(session._t); document.getElementById("toast").innerHTML=""; document.getElementById("overlay").innerHTML=""; const app=document.getElementById("app");
+  if(session.idx>=session.ids.length||session.done){ document.onkeydown=null; app.innerHTML=sessionSummary(); bind(); return; }
+  const l=S.leads.find(x=>x.id===session.ids[session.idx]); if(!l){ session.idx++; renderRapid(); return; }
+  const next=S.leads.find(x=>x.id===session.ids[session.idx+1]);
+  const quick=[["na","No answer","var(--t3)"],["contacted","Contacted","var(--blue)"],["callback","Callback","var(--amber)"],["noint","Not int.","var(--t3)"],["bad","Bad #","var(--red)"]];
+  const speeds=[["0","Off"],["4","4s"],["3","3s"],["2","2s"],["1","1s"]];
+  app.innerHTML=`<div class="dialer">
+    <div class="row" style="padding:14px 14px 4px"><button class="btn btn-sm btn-ghost" data-act="endsession">✕ End</button>
+      <div class="grow" style="text-align:center"><div class="lab">Rapid Dial</div><div class="num" style="font-weight:700;margin-top:2px">${session.idx+1} / ${session.ids.length}</div></div>
+      <div style="width:60px;text-align:right" class="tiny muted num">${session.dials} dials</div></div>
+    <div style="flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:6px 16px">
+      <div class="lab" style="margin-bottom:8px">${esc(l.first)} ${esc(l.last)}${l.product?" · "+esc(l.product):""}</div>
+      <button class="rapidnum num" data-rapidcall="${l.id}">${esc(l.phone||"no number")}</button>
+      <div class="tiny muted" style="margin-top:10px">${IS_DESKTOP?"Tap the number to copy it, then dial on your phone · Space = next":"Tap the number to call"}</div>
+      ${next?`<div class="lab" style="margin-top:16px">Next · ${esc(next.first)} ${esc(next.last)} · <span class="num">${esc(next.phone||"")}</span></div>`:""}
+    </div>
+    <div style="padding:0 14px 8px"><div class="rapidq">${quick.map(([id,lb,c],i)=>`<button class="oc" data-rapid="${id}"><span class="dot" style="background:${c}"></span>${lb}<span class="kbd">${i+1}</span></button>`).join("")}</div></div>
+    <button class="btn btn-primary btn-block btn-lg" data-rapid="_next" style="margin:0 14px">Next number ▸</button>
+    <div class="row" style="justify-content:center;gap:7px;padding:12px 14px 22px;flex-wrap:wrap"><span class="tiny muted">Auto-advance</span>${speeds.map(([v,lb])=>`<button class="chipbtn ${String(session.auto)===v?"on":""}" data-auto="${v}">${lb}</button>`).join("")}</div>
+  </div>`;
+  bind();
+  document.onkeydown=function(e){ if(!session||session.mode!=="rapid") return; const k=e.key;
+    if(k===" "||k==="ArrowRight"||k==="Enter"){ e.preventDefault(); rapidNext("_next"); }
+    else if(k>="1"&&k<="5"){ const qq=quick[(+k)-1]; if(qq){ e.preventDefault(); rapidNext(qq[0]); } }
+    else if(k==="c"||k==="C"){ if(l.phone) copyText(l.phone,l.phone+" copied — dial it on your phone."); } };
+  if(session.auto>0){ session._t=setTimeout(function(){ if(session&&session.mode==="rapid") rapidNext("_next"); }, session.auto*1000); }
+}
 function renderDialer(){ document.getElementById("toast").innerHTML=""; const app=document.getElementById("app");
   if(session.idx>=session.ids.length||session.done){ app.innerHTML=sessionSummary(); bind(); return; }
   const l=S.leads.find(x=>x.id===session.ids[session.idx]); if(!l){ session.idx++; renderDialer(); return; }
@@ -694,6 +740,16 @@ function addMenu(){ sheet(`<h2>Add leads</h2>
   <button class="btn btn-block" data-act="importpaste" style="margin-bottom:10px">Paste a list</button>
   <button class="btn btn-block btn-sm btn-ghost" data-act="dedupe">Remove duplicate numbers</button>`); }
 
+function connectSheet(){ const u=SHARE_URL;
+  if(u){ sheet(`<h2>Use BagBoard on your phone</h2>
+    <div class="tiny muted" style="margin-bottom:14px">Your phone must be on the <b>same Wi-Fi</b> as this computer.</div>
+    <div class="lab" style="margin-bottom:6px">Open this address on your phone</div>
+    <button class="copynum num" data-copynum="${esc(u)}" style="font-size:17px;width:100%;justify-content:center">${esc(u)} <span class="tiny" style="color:var(--acc)">copy</span></button>
+    <div class="tiny muted" style="margin-top:16px;line-height:1.7">1. On your phone, open your browser and type that address.<br>2. Tap the browser's Share icon &rarr; <b>Add to Home Screen</b> — now it opens like an app.<br>3. Tap any lead's number and your phone dials it directly.</div>
+    <div class="divtop tiny muted" style="line-height:1.6">Each phone keeps its own leads. To work the same list, import the same CSV on each device.</div>`); }
+  else { sheet(`<h2>Use BagBoard on your phone</h2>
+    <div class="tiny muted" style="line-height:1.7">You're running in <b>private</b> mode, so your phone can't reach it yet. Two quick steps:<br><br>
+    1. Close the black BagBoard window.<br>2. Start BagBoard again (double-click the launcher).<br>3. At <b>"Share on your Wi-Fi?"</b> type <b>Y</b> and press Enter.<br>4. Come back here and tap <b>Use it on your phone</b> again — your phone's address will appear.</div>`); } }
 function leadForm(l){ l=l||{};
   return `<h2>${l.id?"Edit lead":"New lead"}</h2>
   <div class="row" style="gap:10px"><div class="field grow"><label>First name</label><input id="f-first" value="${esc(l.first||"")}"/></div><div class="field grow"><label>Last name</label><input id="f-last" value="${esc(l.last||"")}"/></div></div>
@@ -788,6 +844,8 @@ function bind(){ const root=document.body;
 
   root.querySelectorAll("[data-act]").forEach(b=>b.onclick=()=>{ const a=b.dataset.act;
     if(a==="session") startSession();
+    else if(a==="rapid") startRapid();
+    else if(a==="connectphone") connectSheet();
     else if(a==="endsession") endSession();
     else if(a==="addmenu") addMenu();
     else if(a==="addlead") sheet(leadForm());
@@ -824,6 +882,9 @@ function bind(){ const root=document.body;
   root.querySelectorAll("[data-sescall]").forEach(b=>b.onclick=()=>{ const l=S.leads.find(x=>x.id===b.dataset.sescall); if(l) callLead(l,{silent:true}); });
   root.querySelectorAll("[data-sestext]").forEach(b=>b.onclick=()=>{ const l=S.leads.find(x=>x.id===b.dataset.sestext); if(l) textLead(l); });
   root.querySelectorAll("[data-oc]").forEach(b=>b.onclick=()=>pickOutcome(b.dataset.oc));
+  root.querySelectorAll("[data-rapid]").forEach(b=>b.onclick=()=>rapidNext(b.dataset.rapid));
+  root.querySelectorAll("[data-auto]").forEach(b=>b.onclick=()=>{ if(session){ session.auto=+b.dataset.auto; renderRapid(); } });
+  root.querySelectorAll("[data-rapidcall]").forEach(b=>b.onclick=()=>{ const l=S.leads.find(x=>x.id===b.dataset.rapidcall); if(l) callLead(l,{silent:true}); });
 }
 function ensureFile(id){ let fi=document.getElementById(id); if(!fi){ fi=document.createElement("input"); fi.type="file"; fi.id=id; fi.style.display="none"; document.body.appendChild(fi); } return fi; }
 function saveSettings(){ S.agent=val("set-agent")||"You"; S.targets.dials=parseInt(val("t-dials"))||0; S.targets.contacts=parseInt(val("t-contacts"))||0; S.targets.appts=parseInt(val("t-appts"))||0;

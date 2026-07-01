@@ -1,6 +1,8 @@
 # Changelog
 
 ## 1.0.0 — 2026-06-30
+
+- **Rapid Dial** mode: blitz the whole list — big number, tap to copy, Spacebar for next, keys 1–5 for quick outcomes, and optional hands-free auto-advance (1–4s).
 First public release.
 
 - Single-file, offline call CRM. Data stored in localStorage; no backend, no accounts, no fees.

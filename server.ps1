@@ -14,7 +14,6 @@ if ($share -match '^[Yy]') {
     try { $lan = (Get-NetIPAddress -AddressFamily IPv4 -ErrorAction Stop | Where-Object { $_.IPAddress -notmatch '^(127\.|169\.254\.)' } | Sort-Object InterfaceMetric | Select-Object -First 1).IPAddress } catch {}
     if (-not $lan) { try { $lan = ([System.Net.Dns]::GetHostAddresses([System.Net.Dns]::GetHostName()) | Where-Object { $_.AddressFamily -eq 'InterNetwork' -and $_.ToString() -notmatch '^(127\.|169\.254\.)' } | Select-Object -First 1).ToString() } catch {} }
 } else { $bind = [System.Net.IPAddress]::Loopback; $shared = $false }
-
 $listener = New-Object System.Net.Sockets.TcpListener($bind, $port)
 try { $listener.Start() } catch { Start-Process "http://localhost:$port/"; exit 0 }
 Start-Process "http://localhost:$port/"
@@ -22,17 +21,11 @@ Clear-Host; Write-Host ''
 Write-Host '  BagBoard is running' -ForegroundColor Green
 Write-Host ''
 Write-Host "  On this computer:     http://localhost:$port/"
-if ($shared) {
-  if ($lan) {
-    Write-Host "  Others on your Wi-Fi: http://${lan}:$port/" -ForegroundColor Yellow
-    Write-Host '  (First time, Windows may ask to allow it through the firewall - click Allow.)'
-  } else { Write-Host '  Sharing on Wi-Fi - run ipconfig to find your IPv4 address to share.' -ForegroundColor Yellow }
-} else { Write-Host '  Private - only this computer can open it.' }
-Write-Host ''
-Write-Host '  Keep this window open while you work. Close it to stop.'
-Write-Host ''
-
-$htmlBytes = [System.IO.File]::ReadAllBytes($htmlPath)
+if ($shared) { if ($lan) { Write-Host "  On your phone (Wi-Fi): http://${lan}:$port/" -ForegroundColor Yellow; Write-Host '  (First time, Windows may ask to allow it through the firewall - click Allow.)' } else { Write-Host '  Sharing on Wi-Fi - run ipconfig to find your IPv4 address.' -ForegroundColor Yellow } } else { Write-Host '  Private - only this computer can open it.' }
+Write-Host ''; Write-Host '  Keep this window open while you work. Close it to stop.'; Write-Host ''
+$htmlText = [System.IO.File]::ReadAllText($htmlPath)
+if ($shared -and $lan) { $htmlText = $htmlText.Replace('</head>', "<script>window.BB_SHARE='http://${lan}:$port/';</script></head>") }
+$htmlBytes = [System.Text.Encoding]::UTF8.GetBytes($htmlText)
 while ($true) {
     $client = $listener.AcceptTcpClient()
     try {

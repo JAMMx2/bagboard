@@ -30,6 +30,8 @@ Your leads live in your own browser; you dial them from your own phone.
 - Lines up who to call next and walks you through them one at a time — number, outcome, next.
 - Full pipeline: New → Contacted → Callback → Appt → Quoted → Closed, with follow-ups scheduled for you.
 - Hand-dial friendly: tap-to-call on a phone; on a computer it copies the number to dial by hand and copies a ready-to-send follow-up text.
+- **Rapid Dial** mode: blitz a whole list — big number, tap to copy, Spacebar to advance, keys 1–5 to log an outcome, and optional hands-free auto-advance.
+- **Use it on your phone**: turn on Wi-Fi sharing and open BagBoard on your phone (same network) to dial numbers straight from there.
 - Search, sort, filter, multi-select, de-dupe. An agenda of what's due. Stats: contact/appointment rates, a 7-day chart, pipeline, and personal bests.
 - Stays motivating — a daily-goal ring, streaks, in-session momentum, and subtle (toggleable) sound cues.
 - CSV import/export and one-click local backup. **Nothing ever leaves your machine.**
