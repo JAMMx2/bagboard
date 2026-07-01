@@ -14,15 +14,17 @@ Your leads live in your own browser; you dial them from your own phone.
 
 </div>
 
-## Download & run — about 30 seconds
+## Get it running — one double-click
 
-**Windows (easiest):** grab **[the latest release](https://github.com/JAMMx2/bagboard/releases/latest)**, unzip `bagboard.zip`, and double-click **`Start-BagBoard-Windows.bat`**. Your browser opens the app at `http://localhost:8753`. No install, no admin.
+**Windows (easiest):** download **[`BagBoard.bat`](https://github.com/JAMMx2/bagboard/releases/latest/download/BagBoard.bat)** and **double-click it**. That's the whole setup — it launches and opens in your browser. No unzip, no install, no admin. *(If Windows shows a "protected your PC" box the first time, click **More info → Run anyway**.)*
 
-**Any computer:** download **[index.html](https://github.com/JAMMx2/bagboard/raw/main/index.html)** and open it in any browser — that's the whole app.
+**Any computer or phone:** download **[index.html](https://github.com/JAMMx2/bagboard/raw/main/index.html)** and open it in any browser — that's the entire app.
 
-**One-file option:** download **`BagBoard-Installer.ps1`** from the release, right-click → *Run with PowerShell*, and it rebuilds and launches everything from that single file.
+**Whole project (developers):** grab **[the latest release](https://github.com/JAMMx2/bagboard/releases/latest)** (`bagboard.zip`) or clone the repo. `SETUP-GUIDE.md` has step-by-step instructions.
 
 > First thing in the app: open **Settings**, set your name, then **Add** or **Import** your leads.
+
+**Sharing on your network (optional):** it's private by default — only your computer can open it. At startup you can type **Y** to share it on your Wi-Fi so others on the same network open it at the address shown (e.g. `http://192.168.1.20:8753`). Only the app is shared; each person's leads stay on their own device.
 
 ## What it does
 - Lines up who to call next and walks you through them one at a time — number, outcome, next.

@@ -11,4 +11,5 @@ First public release.
 - Engagement: daily-goal ring, day streak, in-session momentum meter, milestone moments.
 - Synthesized (Web Audio) sound cues with an on/off toggle — no audio files.
 - CSV import (paste or file), CSV export, JSON backup/restore.
-- Optional one-click Windows launcher to run at http://localhost:8753 via built-in PowerShell.
+- One-file **BagBoard.bat** double-click launcher (contains the whole app; no unzip, no install, no admin) plus a PowerShell server for running from source.
+- Private by default (localhost only); opt in at startup to share on your Wi-Fi so others on the same network can open it.

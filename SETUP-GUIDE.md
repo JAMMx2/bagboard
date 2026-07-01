@@ -1,5 +1,7 @@
 # BagBoard - Setup Guide (Windows)
 
+> **Easiest for anyone:** download **BagBoard.bat** and double-click it. It launches with no unzip, no install, and no admin. Everything below is the manual / from-source route.
+
 BagBoard is a call CRM that runs on your computer at http://localhost:8753.
 No login, no fees. You work leads on screen and dial them on your phone.
 
@@ -29,6 +31,13 @@ only: if Windows shows a blue "protected your PC" box, click More info -> Run an
 ## Sounds
 Subtle audio cues fire on outcomes and milestones (off-switch in Settings). They are
 generated in the browser - no files, nothing to install.
+
+## Sharing on Wi-Fi (optional)
+By default BagBoard is **private** — only your computer can open it. When it starts, it asks:
+*"Share on your Wi-Fi?"* Press **Enter** to stay private, or type **Y** to let others on the same
+network open it at the address shown (for example `http://192.168.1.20:8753`). The first time,
+Windows may ask you to allow it through the firewall — click **Allow**. Only the app is shared;
+everyone's leads stay on their own device.
 
 ## Back up your data
 Your leads live in this browser only. In Settings -> Data, use Download backup weekly

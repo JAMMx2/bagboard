@@ -13,5 +13,8 @@ soon as we can.
 ## Scope notes
 - The only HTML sink is `innerHTML`; all user-controlled values are HTML-escaped via `esc()`.
 - Restored backup files are normalized/validated before use (`normalize()`).
-- The optional Windows launcher (`server.ps1`) binds to `127.0.0.1` only and always serves
-  the local app file (no request-path-to-file mapping, so no path traversal).
+- The optional Windows launcher (`server.ps1`) binds to `127.0.0.1` (private) by default. You may
+  opt in at startup to share on your local network, which binds to your LAN address so other devices
+  on the same Wi-Fi can open the app. It always serves the single app file for any request (no
+  request-path-to-file mapping, so no path traversal), and no user data is transmitted — each
+  viewer's leads stay in their own browser.
