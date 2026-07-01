@@ -443,8 +443,8 @@ function viewDashboard(){
   </div>
   <div class="coach" style="margin-top:16px"><div class="av">V</div><div class="grow"><div class="nm">${NPC.name}</div><div class="msg">${NPC.coach()}</div></div></div>
   <button class="btn btn-primary btn-block btn-lg" data-act="session" style="margin-top:16px">Start calling${q.length?` · ${q.length} queued`:""}</button>
-  <button class="btn btn-block" data-act="rapid" style="margin-top:10px">⚡ Rapid dial — blitz the list</button>
-  <button class="btn btn-block" data-act="connectphone" style="margin-top:10px">📱 Use it on your phone</button>
+  <button class="btn btn-block" data-act="rapid" style="margin-top:10px">Rapid dial — blitz the list</button>
+  <button class="btn btn-block" data-act="connectphone" style="margin-top:10px">Use it on your phone</button>
   ${q.length?`<div class="lab" style="margin:18px 0 8px">Up next</div><div class="card">${q.slice(0,5).map(l=>leadRow(l)).join("")}</div>`:`<div class="empty" style="margin-top:18px"><div class="em">○</div>No leads yet.<br><br><button class="btn btn-primary btn-sm" data-act="addmenu">Add leads</button></div>`}
   `;
 }
@@ -619,7 +619,7 @@ function viewSettings(){ const tt=S.textTemplates;
     ${[["vm","Voicemail follow-up"],["callback","Callback"],["appt","Appointment"],["quote","Quote sent"],["na","No answer"],["won","Closed won"],["generic","Generic"]].map(([k,lb])=>`<div class="field"><label>${lb}</label><textarea data-tpl="${k}">${esc(tt[k]||"")}</textarea></div>`).join("")}
   </div>
   <button class="btn btn-primary btn-block btn-lg" data-act="savesettings" style="margin-top:13px">Save settings</button>
-  <div class="card" style="margin-top:16px"><div class="lab" style="margin-bottom:10px">Your phone</div><button class="btn btn-block btn-sm" data-act="connectphone">📱 Use BagBoard on your phone</button><div class="tiny muted" style="margin-top:8px;line-height:1.5">Open it on your phone (same Wi-Fi) and dial straight from there. Requires starting in Wi-Fi mode.</div></div>
+  <div class="card" style="margin-top:16px"><div class="lab" style="margin-bottom:10px">Your phone</div><button class="btn btn-block btn-sm" data-act="connectphone">Use BagBoard on your phone</button><div class="tiny muted" style="margin-top:8px;line-height:1.5">Open it on your phone (same Wi-Fi) and dial straight from there. Requires starting in Wi-Fi mode.</div></div>
   <div class="card" style="margin-top:16px"><div class="lab" style="margin-bottom:10px">Data (stays on this device)</div>
     <div class="row" style="gap:10px"><button class="btn btn-block btn-sm" data-act="importcsv">Import CSV file</button><button class="btn btn-block btn-sm" data-act="importpaste">Paste a list</button></div>
     <div class="row" style="gap:10px;margin-top:10px"><button class="btn btn-block btn-sm" data-act="exportcsv">Export CSV</button><button class="btn btn-block btn-sm" data-act="backupfile">Download backup</button></div>
