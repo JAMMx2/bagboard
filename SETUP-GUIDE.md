@@ -7,12 +7,13 @@ No login, no fees. You work leads on screen and dial them on your phone.
 
 ## Start it
 Keep these two files together (e.g. a "BagBoard" folder on your Desktop):
-- Start BagBoard.bat   <- double-click this
-- BagBoard.ps1         <- the app (leave it)
+- Start-BagBoard-Windows.bat   <- double-click this
+- server.ps1 + index.html      <- the app (leave them together)
 
-Double-click Start BagBoard.bat. A small black window opens and your browser opens
-BagBoard. Keep the black window open while you work; close it to stop. First time
-only: if Windows shows a blue "protected your PC" box, click More info -> Run anyway.
+Double-click the .bat. A small black window opens and your browser opens BagBoard.
+Keep the black window open while you work; close it to stop. First time only: if
+Windows shows a blue "protected your PC" box, click More info -> Run anyway.
+(If BagBoard is already running, double-clicking again just reopens it.)
 
 ## First five minutes
 1. Settings (gear, top-right): type your name, set daily targets, toggle Sounds, Save.
@@ -35,10 +36,16 @@ generated in the browser - no files, nothing to install.
 ## Sharing on Wi-Fi (optional)
 By default BagBoard is **private** — only your computer can open it. When it starts, it asks:
 *"Share on your Wi-Fi?"* Press **Enter** to stay private, or type **Y** to let others on the same
-network open it at the address shown (for example `http://192.168.1.20:8753`). The first time,
-Windows may ask you to allow it through the firewall — click **Allow**. Only the app is shared;
-everyone's leads stay on their own device.
+network open it at the address shown (for example `http://192.168.1.20:8753`).
+
+- The first time, Windows may ask you to allow it through the firewall — click **Allow**.
+- Some guest/office Wi-Fi blocks device-to-device traffic; if a phone or laptop can't open the
+  address, you're on such a network.
+- **Only the app is shared, not the data.** Everyone who opens it gets their own private list on
+  their own device — nothing syncs or merges. For your own pipeline, run your own copy.
 
 ## Back up your data
-Your leads live in this browser only. In Settings -> Data, use Download backup weekly
-(and Export CSV anytime). Restore from file if you move to a new computer.
+Your leads live in one browser, tied to the address you opened. In Settings -> Data, use
+**Download backup** weekly (and Export CSV anytime). If you switch computers, or the shared
+address changes, use **Restore from file** on the new copy. BagBoard reminds you when a backup
+is due and shows where your data is stored.

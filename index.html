@@ -31,6 +31,11 @@ a{color:var(--acc);}
 .logo{display:none;}
 .hdr h1{font-size:17px;margin:0;font-weight:600;letter-spacing:-.02em;color:var(--t1);}
 .hdr .sub{font-size:11px;color:var(--t3);margin-top:2px;font-weight:500;}
+.notice{display:flex;align-items:center;gap:8px;max-width:540px;margin:0 auto;padding:9px 14px;background:var(--s1);border-bottom:1px solid var(--ln);font-size:12px;color:var(--t2);line-height:1.45;}
+.notice .nt{flex:1;} .notice .nt b{color:var(--t1);font-weight:600;}
+.notice .nx{background:none;border:none;color:var(--t3);font-size:13px;line-height:1;cursor:pointer;padding:4px 6px;flex:none;border-radius:6px;}
+.notice .nx:hover{color:var(--t1);}
+.notice.warn{box-shadow:inset 3px 0 0 var(--amber);}
 .ibtn{width:32px;height:32px;border-radius:8px;display:grid;place-items:center;color:var(--t2);background:none;border:1px solid var(--ln);font-size:16px;}
 .ibtn:active{background:var(--s2);}
 
@@ -216,6 +221,7 @@ function blankState(){
   return {
     agent:"You", leads:[], calls:[],
     streak:{count:0,last:""}, bests:{dayDials:0,streak:0,combo:0}, sound:true,
+    lastBackup:0, backupSnooze:0, noticeDismissed:false,
     targets:{dials:30,contacts:8,appts:2},
     textTemplates:{
       vm:"Hi {first}, this is {agent} — I just tried you about the {product} information you asked about. Call or text me back when you get a moment.",
@@ -236,6 +242,7 @@ function normalize(st){ const b=blankState(); if(!st||typeof st!=="object") retu
   if(!st.streak||typeof st.streak!=="object") st.streak={count:0,last:""};
   if(!st.textTemplates||typeof st.textTemplates!=="object") st.textTemplates=b.textTemplates;
   if(!st.bests||typeof st.bests!=="object") st.bests={dayDials:0,streak:0,combo:0};
+  st.lastBackup=parseInt(st.lastBackup)||0; st.backupSnooze=parseInt(st.backupSnooze)||0; st.noticeDismissed=!!st.noticeDismissed;
   st.leads=st.leads.filter(l=>l&&typeof l==="object").map(l=>{ if(!VS[l.stage]) l.stage="new"; if(!Array.isArray(l.notes)) l.notes=[]; l.value=parseInt(l.value)||0; return l; });
   st.calls=st.calls.filter(c=>c&&typeof c==="object");
   return st; }
@@ -396,7 +403,7 @@ function render(){ recompute(); save(); const app=document.getElementById("app")
   else if(screen==="agenda") body=viewAgenda();
   else if(screen==="stats") body=viewStats();
   else if(screen==="settings") body=viewSettings();
-  app.innerHTML=header()+`<div class="screen">${body}</div>`+nav(); bind();
+  app.innerHTML=header()+noticeBar()+`<div class="screen">${body}</div>`+nav(); bind();
   if(screen==="leads") fillLeadList(); }
 function recompute(){ /* hook for future; pipeline computed live */ }
 
@@ -408,6 +415,17 @@ function header(){
     : (screen==="settings"||screen==="lead"||screen==="agenda"||screen==="stats")
       ? `<button class="ibtn" data-nav="dashboard" title="Home" aria-label="Home">⌂</button>` : "";
   return `<div class="hdr"><div class="logo">B</div><div class="grow"><h1>${ti[0]}</h1>${ti[1]?`<div class="sub">${ti[1]}</div>`:""}</div>${actions}</div>`;
+}
+function dataLocationLabel(){ try{ if(location.protocol==="file:") return "this browser (local file)"; return location.host||"this browser"; }catch(e){ return "this browser"; } }
+function backupDue(){ return S.leads.length>0 && (!S.lastBackup || (Date.now()-S.lastBackup)>7*DAY) && (!S.backupSnooze || Date.now()>S.backupSnooze); }
+function noticeBar(){
+  if(SHARE_URL && !S.noticeDismissed){
+    return `<div class="notice warn"><div class="nt">You're on a <b>shared address</b> (${esc(dataLocationLabel())}). Your leads save here, on this device — if this address changes, back up first from Settings.</div><button class="nx" data-act="dismissnotice" aria-label="Dismiss">✕</button></div>`;
+  }
+  if(backupDue()){
+    return `<div class="notice"><div class="nt">Back up your leads — they only live in this browser.</div><button class="btn btn-sm" data-act="backupfile" style="margin:0 4px;padding:5px 11px">Back up</button><button class="nx" data-act="snoozebackup" aria-label="Dismiss">✕</button></div>`;
+  }
+  return "";
 }
 function nav(){
   const items=[["dashboard","⌂","Home"],["leads","≣","Leads"],["session","✆","Call"],["agenda","◷","Agenda"],["stats","▦","Stats"]];
@@ -620,7 +638,8 @@ function viewSettings(){ const tt=S.textTemplates;
   </div>
   <button class="btn btn-primary btn-block btn-lg" data-act="savesettings" style="margin-top:13px">Save settings</button>
   <div class="card" style="margin-top:16px"><div class="lab" style="margin-bottom:10px">Your phone</div><button class="btn btn-block btn-sm" data-act="connectphone">Use BagBoard on your phone</button><div class="tiny muted" style="margin-top:8px;line-height:1.5">Open it on your phone (same Wi-Fi) and dial straight from there. Requires starting in Wi-Fi mode.</div></div>
-  <div class="card" style="margin-top:16px"><div class="lab" style="margin-bottom:10px">Data (stays on this device)</div>
+  <div class="card" style="margin-top:16px"><div class="lab" style="margin-bottom:4px">Data (stays on this device)</div>
+    <div class="tiny muted" style="margin-bottom:12px;line-height:1.5">Saved in this browser at <b style="color:var(--t2)">${esc(dataLocationLabel())}</b>${SHARE_URL?" — a shared address; if it changes, restore from a backup.":"."} ${S.lastBackup?"Last backup "+rel(new Date(S.lastBackup).toISOString())+".":"No backup yet."}</div>
     <div class="row" style="gap:10px"><button class="btn btn-block btn-sm" data-act="importcsv">Import CSV file</button><button class="btn btn-block btn-sm" data-act="importpaste">Paste a list</button></div>
     <div class="row" style="gap:10px;margin-top:10px"><button class="btn btn-block btn-sm" data-act="exportcsv">Export CSV</button><button class="btn btn-block btn-sm" data-act="backupfile">Download backup</button></div>
     <div class="row" style="gap:10px;margin-top:10px"><button class="btn btn-block btn-sm" data-act="restorefile">Restore from file</button><button class="btn btn-block btn-sm" data-act="dedupe">Remove duplicates</button></div>
@@ -817,7 +836,7 @@ function leadsToCSV(list){ const cols=["first","last","phone","product","value",
   const cell=v=>{ v=v==null?"":String(v); return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; };
   return [cols.join(",")].concat(list.map(l=>cols.map(k=>cell(l[k])).join(","))).join("\n"); }
 function exportCSV(){ if(!S.leads.length){ toast("No leads to export"); return; } download("bagboard-leads-"+dayKey(Date.now())+".csv",leadsToCSV(S.leads),"text/csv"); }
-function backupFile(){ download("bagboard-backup-"+dayKey(Date.now())+".json",JSON.stringify(S),"application/json"); }
+function backupFile(){ S.lastBackup=Date.now(); save(); download("bagboard-backup-"+dayKey(Date.now())+".json",JSON.stringify(S),"application/json"); }
 function handleFile(input,cb){ const f=input.files&&input.files[0]; if(!f) return; const r=new FileReader();
   r.onload=()=>cb(String(r.result||"")); r.readAsText(f); input.value=""; }
 function dedupe(){ const seen={}; let removed=0; const keep=[];
@@ -855,6 +874,8 @@ function bind(){ const root=document.body;
     else if(a==="restorefile"){ const fi=ensureFile("file-json"); fi.onchange=()=>handleFile(fi,txt=>{ try{ const d=JSON.parse(txt); if(!d||!Array.isArray(d.leads)) throw 0; S=normalize(d); save(); go("dashboard"); toast("Restored from file."); }catch(e){ toast("That file wasn't a valid backup."); } }); fi.click(); }
     else if(a==="exportcsv") exportCSV();
     else if(a==="backupfile") backupFile();
+    else if(a==="dismissnotice"){ S.noticeDismissed=true; save(); render(); }
+    else if(a==="snoozebackup"){ S.backupSnooze=Date.now()+7*DAY; save(); render(); }
     else if(a==="dedupe") dedupe();
     else if(a==="createlead"){ const d=readLeadForm(); if(!d.first||!digits(d.phone)){ toast("Need a name and phone"); return; } S.leads.push(newLead(d)); save(); closeSheet(); go("leads"); toast(`Added ${d.first}.`); }
     else if(a==="updatelead"){ const l=S.leads.find(x=>x.id===b.dataset.id); if(l) Object.assign(l,readLeadForm()); save(); closeSheet(); render(); }

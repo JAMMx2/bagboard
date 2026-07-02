@@ -18,3 +18,6 @@ soon as we can.
   on the same Wi-Fi can open the app. It always serves the single app file for any request (no
   request-path-to-file mapping, so no path traversal), and no user data is transmitted — each
   viewer's leads stay in their own browser.
+- Wi-Fi sharing has no password by design: the launcher serves **only the app file** over plain
+  HTTP on your LAN, and never sends or stores data server-side, so there's nothing to authenticate
+  to. Keep it **private** (the default) on public/guest networks and only share on networks you trust.
