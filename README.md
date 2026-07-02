@@ -14,6 +14,47 @@ Your leads live in your own browser; you dial them from your own phone.
 
 </div>
 
+## Run it from your terminal (copy-paste)
+
+One line downloads the app and opens it — nothing to install.
+
+**Windows** (PowerShell):
+
+```powershell
+irm https://raw.githubusercontent.com/JAMMx2/bagboard/main/index.html -OutFile "$HOME\Desktop\BagBoard.html"; ii "$HOME\Desktop\BagBoard.html"
+```
+
+**macOS** (Terminal):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/JAMMx2/bagboard/main/index.html -o ~/Desktop/BagBoard.html && open ~/Desktop/BagBoard.html
+```
+
+**Linux** (Terminal):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/JAMMx2/bagboard/main/index.html -o ~/BagBoard.html && xdg-open ~/BagBoard.html
+```
+
+<details>
+<summary><b>Want the localhost server + phone sharing?</b></summary>
+
+**Windows** — downloads and launches the one-file launcher (asks whether to share on Wi-Fi):
+
+```powershell
+irm https://github.com/JAMMx2/bagboard/releases/latest/download/BagBoard.bat -OutFile "$env:TEMP\BagBoard.bat"; & "$env:TEMP\BagBoard.bat"
+```
+
+**macOS / Linux** — serves the app at http://localhost:8753:
+
+```bash
+mkdir -p ~/bagboard && curl -fsSL https://raw.githubusercontent.com/JAMMx2/bagboard/main/index.html -o ~/bagboard/index.html && cd ~/bagboard && python3 -m http.server 8753 --bind 127.0.0.1
+```
+
+Then open **http://localhost:8753**. Drop `--bind 127.0.0.1` to let phones on the same Wi-Fi open it too.
+
+</details>
+
 ## Get it running — one double-click
 
 **Windows (easiest):** download **[`BagBoard.bat`](https://github.com/JAMMx2/bagboard/releases/latest/download/BagBoard.bat)** and **double-click it**. That's the whole setup — it launches and opens in your browser. No unzip, no install, no admin. *(If Windows shows a "protected your PC" box the first time, click **More info -> Run anyway**.)*
