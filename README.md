@@ -5,9 +5,9 @@
 **A single-file call CRM. No login, no servers, no monthly fees.**
 Your leads live in your own browser; you dial them from your own phone.
 
-[![Download](https://img.shields.io/badge/Download-v1.0.1-2ea44f?style=for-the-badge)](https://github.com/JAMMx2/bagboard/releases/latest)
+[![Download](https://img.shields.io/badge/Download-v1.2.0-2ea44f?style=for-the-badge)](https://github.com/JAMMx2/bagboard/releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-3b82f6?style=for-the-badge)](LICENSE)
-![Single file](https://img.shields.io/badge/single_file-~79_KB-6b7280?style=for-the-badge)
+![Single file](https://img.shields.io/badge/single_file-~89_KB-6b7280?style=for-the-badge)
 ![No dependencies](https://img.shields.io/badge/dependencies-none-2ea44f?style=for-the-badge)
 
 ![BagBoard preview](preview.svg)
@@ -65,7 +65,7 @@ Then open **http://localhost:8753**. Drop `--bind 127.0.0.1` to let phones on th
 
 > First thing in the app: open **Settings**, set your name, then **Add** or **Import** your leads.
 
-**Sharing on your network (optional):** it's **private by default** — only your computer can open it. At startup, type **Y** to share it on your Wi-Fi; others on the same network then open it at the address shown (e.g. `http://192.168.1.20:8753`). Only the **app** is shared — never your data.
+**Run it on your computer *and* phone (optional):** launched via `BagBoard.bat` / `server.ps1` it keeps your leads in a small database on your PC. Type **Y** at startup to share on Wi-Fi, then open the shown address on your phone — you dial the **same live list** from your phone (your own number, a normal call) and every outcome syncs back. Private by default; the shared endpoint is token-gated, so use a network you trust.
 
 ## What it does
 - Lines up who to call next and walks you through them one at a time — number, outcome, next.
@@ -80,16 +80,18 @@ Then open **http://localhost:8753**. Drop `--bind 127.0.0.1` to let phones on th
 ## Your data & privacy
 Everything is stored in your browser's `localStorage` on the device you use — no accounts, no network calls, no tracking. Clearing your browser wipes it, so use **Settings -> Download backup** now and then. See [SECURITY.md](SECURITY.md) and the [security audit](AUDIT.md).
 
-## Multiple people / same Wi-Fi
-BagBoard has no server-side database — sharing hands out the **app**, not the **leads**. So when a team uses it:
+## Dial from your phone (pair it)
+Launch BagBoard with **BagBoard.bat** (or `server.ps1`) and type **Y** at "Share on your Wi-Fi?". It prints an address like `http://192.168.1.20:8753`. Open that on your phone (same Wi-Fi) and:
 
-- **Everyone keeps their own private list.** Each person's leads live in their own browser on their own device. Nothing syncs or merges, and no one sees anyone else's leads.
-- **For your day-to-day pipeline, run your own copy** (your own `BagBoard.bat` or `index.html`). Treat a teammate's shared address as a convenience, not where you keep your data.
-- **Your data is tied to the address you open.** localStorage is per-address, so `http://192.168.1.20:8753` and your own local copy are separate buckets. If the host's IP changes or goes offline, open **Settings -> Download backup** first, then **Restore** on the other copy. BagBoard shows a banner when you're on a shared address.
-- **Back up regularly** — it's the only copy. Settings -> Download backup (weekly is plenty). BagBoard nudges you when a backup is due.
-- **Network gotchas:** the first share may trigger a Windows Firewall prompt (click **Allow**), and many guest/office networks block device-to-device traffic, which stops the shared address from loading. Neither means anything is broken.
+- You dial the **same leads** as the computer — tap a number and your phone places the call with **your own number** (no VoIP, no fees).
+- Outcomes you log on the phone **sync back** to the computer, and vice-versa. The host PC holds the shared database (`BagBoard-data.json` in your user folder), so your list also survives a browser-cache wipe.
+- Tap Share → **Add to Home Screen** so it opens like an app.
 
-Want a true shared team pipeline (one list everyone edits)? That's a different design — open an issue.
+**Standalone mode still works:** open `index.html` as a plain file and it's the original offline, per-device app (localStorage, no sync).
+
+**On security:** sharing exposes a token-gated `/api/state` endpoint on your LAN — a device on that network with the link can read/write the leads. Use a **trusted** network (home/office), keep it **private** (the default) on public/guest Wi-Fi, and back up regularly. See [SECURITY.md](SECURITY.md).
+
+Want the same list across *different* networks (home ↔ office, no shared Wi-Fi)? That's the cloud/Drive path — open an issue.
 
 ## Contributing
 It's intentionally one file of vanilla HTML/CSS/JS — no build step, no dependencies. See [CONTRIBUTING.md](CONTRIBUTING.md).

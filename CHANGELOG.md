@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.2.0 — 2026-07
+
+- **Add notes anywhere.** A note box right on the dial screen and the lead view — no digging through menus.
+- **Full call & note memory.** Each lead shows a timeline of every dial, its outcome, and every note, newest first.
+- **One-tap quick texts.** Fire the right follow-up (voicemail, callback, appt, quote, thanks) straight from the dialer.
+- **Bigger wins.** Confetti and a punchy moment when you close or set an appointment, plus "on fire" streak call-outs.
+
+
+- **Dial from your phone (pairing).** Run the launcher, share on Wi-Fi, open the address on your phone, and dial the SAME leads from your phone with your own number — outcomes sync both ways.
+- **Shared database.** The Windows launcher now stores leads in a local file (`%USERPROFILE%\BagBoard-data.json`) and serves a token-gated `/api/state` endpoint, so the computer and phone share one live list (and data survives a browser-cache wipe). Opening `index.html` as a plain file remains the offline, per-device mode.
+- **Pair-your-phone screen** with an optional "number you dial from" field.
+- **Smarter CSV import.** Auto-detects the name, phone and other columns from almost any CRM export, ignores decoy columns (policy numbers, dates, emails, disposition tags like "YES"/"WARM"), strips `+1` and formatting, de-dupes, preserves any unmapped columns and a Notes/Comments column into each lead's Notes (nothing is dropped), and reports how many rows were skipped.
+- Security & docs updated for the LAN sync posture (trusted networks only).
+
 ## 1.0.1 — 2026-07-01
 
 - **Shared-address awareness:** BagBoard now shows a banner when you're running off a shared Wi-Fi

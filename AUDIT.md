@@ -40,3 +40,12 @@ No runtime dependencies. Original code and content. Released under MIT (see LICE
 ## Residual recommendations (non-blocking, nice-to-have)
 - Modal sheets could add `role="dialog"`, focus-trap, and Escape-to-close for fuller a11y.
 - Add a state-version/migration scheme if the saved data shape changes in future releases.
+
+## v1.1.0 addendum (2026-07) — optional Wi-Fi sync
+The app gained an optional shared-database mode. Launched via the server with sharing on, it makes
+**same-origin** `fetch` calls to a **token-gated** `/api/state` endpoint served by the local launcher,
+which persists leads to `%USERPROFILE%\BagBoard-data.json`. Notes: (1) opened as a plain file the app is
+still fully offline (no network); (2) in shared mode leads are readable/writable by LAN devices holding
+the link (token gate only, not strong auth), so it is documented as trusted-network-only; (3) the
+launcher still serves the single app for any non-API path (no path traversal), and a POST only ever
+overwrites the one data file. No third-party code or external network calls were introduced.

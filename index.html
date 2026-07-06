@@ -36,6 +36,13 @@ a{color:var(--acc);}
 .notice .nx{background:none;border:none;color:var(--t3);font-size:13px;line-height:1;cursor:pointer;padding:4px 6px;flex:none;border-radius:6px;}
 .notice .nx:hover{color:var(--t1);}
 .notice.warn{box-shadow:inset 3px 0 0 var(--amber);}
+.tl{display:flex;align-items:flex-start;gap:9px;padding:8px 0;border-top:1px solid var(--ln);}
+.tl:first-child{border-top:0;}
+.tl-dot{width:8px;height:8px;border-radius:50%;margin-top:5px;flex:none;}
+.qtext{display:flex;flex-wrap:wrap;gap:7px;}
+.confetti{position:fixed;inset:0;pointer-events:none;z-index:95;overflow:hidden;}
+.confetti i{position:absolute;top:-14px;width:8px;height:13px;border-radius:2px;animation:cfall 1.25s linear forwards;}
+@keyframes cfall{to{transform:translateY(104vh) rotate(400deg);opacity:.6;}}
 .ibtn{width:32px;height:32px;border-radius:8px;display:grid;place-items:center;color:var(--t2);background:none;border:1px solid var(--ln);font-size:16px;}
 .ibtn:active{background:var(--s2);}
 
@@ -221,7 +228,7 @@ function blankState(){
   return {
     agent:"You", leads:[], calls:[],
     streak:{count:0,last:""}, bests:{dayDials:0,streak:0,combo:0}, sound:true,
-    lastBackup:0, backupSnooze:0, noticeDismissed:false,
+    lastBackup:0, backupSnooze:0, noticeDismissed:false, dialFrom:"", updatedAt:0,
     targets:{dials:30,contacts:8,appts:2},
     textTemplates:{
       vm:"Hi {first}, this is {agent} — I just tried you about the {product} information you asked about. Call or text me back when you get a moment.",
@@ -243,13 +250,30 @@ function normalize(st){ const b=blankState(); if(!st||typeof st!=="object") retu
   if(!st.textTemplates||typeof st.textTemplates!=="object") st.textTemplates=b.textTemplates;
   if(!st.bests||typeof st.bests!=="object") st.bests={dayDials:0,streak:0,combo:0};
   st.lastBackup=parseInt(st.lastBackup)||0; st.backupSnooze=parseInt(st.backupSnooze)||0; st.noticeDismissed=!!st.noticeDismissed;
+  st.dialFrom=(typeof st.dialFrom==="string")?st.dialFrom:""; st.updatedAt=parseInt(st.updatedAt)||0;
   st.leads=st.leads.filter(l=>l&&typeof l==="object").map(l=>{ if(!VS[l.stage]) l.stage="new"; if(!Array.isArray(l.notes)) l.notes=[]; l.value=parseInt(l.value)||0; return l; });
   st.calls=st.calls.filter(c=>c&&typeof c==="object");
   return st; }
 let S=load();
 function load(){ try{ const r=localStorage.getItem(KEY); if(r) return normalize(JSON.parse(r)); }catch(e){} return blankState(); }
 let _saveWarned=false;
-function save(){ try{ localStorage.setItem(KEY,JSON.stringify(S)); _saveWarned=false; }catch(e){ if(!_saveWarned){ _saveWarned=true; try{ toast("Couldn't save — storage may be full or disabled. Download a backup."); }catch(_){} } } }
+function save(){ S.updatedAt=Date.now(); try{ localStorage.setItem(KEY,JSON.stringify(S)); _saveWarned=false; }catch(e){ if(!_saveWarned){ _saveWarned=true; try{ toast("Couldn't save — storage may be full or disabled. Download a backup."); }catch(_){} } } schedulePush(); }
+/* ---------- shared store: file-backed DB via the BagBoard server + live sync to your phone ---------- */
+const SYNC=!!window.BB_STORE; const STORE=window.BB_STORE||"/api/state";
+let _pushT=null, _pulling=false, _lastSig="";
+function stateSig(x){ try{ return JSON.stringify([x.agent,x.dialFrom,x.targets,x.textTemplates,x.leads,x.calls,x.streak,x.bests]); }catch(e){ return Math.random()+""; } }
+function pushState(){ if(!SYNC) return; const sig=stateSig(S); if(sig===_lastSig) return; _lastSig=sig;
+  try{ fetch(STORE,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(S)}).catch(function(){}); }catch(e){} }
+function schedulePush(){ if(!SYNC) return; clearTimeout(_pushT); _pushT=setTimeout(pushState,500); }
+async function pullState(){ if(!SYNC) return; const ov=document.getElementById("overlay"); if(session||(ov&&ov.innerHTML.trim())) return;
+  try{ const r=await fetch(STORE,{cache:"no-store"}); if(!r.ok) return; const d=await r.json();
+    if(d&&Array.isArray(d.leads)&&(d.updatedAt||0)>(S.updatedAt||0)&&stateSig(d)!==stateSig(S)){
+      S=normalize(d); _lastSig=stateSig(S); try{ localStorage.setItem(KEY,JSON.stringify(S)); }catch(e){} render(); } }catch(e){} }
+async function bootSync(){ let remote=null; try{ const r=await fetch(STORE,{cache:"no-store"}); if(r.ok) remote=await r.json(); }catch(e){}
+  if(remote&&Array.isArray(remote.leads)&&remote.leads.length){ S=normalize(remote); try{ localStorage.setItem(KEY,JSON.stringify(S)); }catch(e){} _lastSig=stateSig(S); }
+  else { _lastSig=""; }
+  render();
+  setInterval(function(){ if(_pulling) return; _pulling=true; Promise.resolve(pullState()).finally(function(){ _pulling=false; }); }, 4000); }
 const uid=()=>"L"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 
 /* ---------- helpers ---------- */
@@ -525,6 +549,19 @@ function bindLeadRows(root){
 }
 
 /* ---------- LEAD DETAIL ---------- */
+function leadDialCount(l){ let n=0; for(let i=0;i<S.calls.length;i++){ if(S.calls[i].leadId===l.id) n++; } return n; }
+function leadTimeline(l){ const ev=[];
+  for(let i=0;i<S.calls.length;i++){ const c=S.calls[i]; if(c.leadId===l.id) ev.push({at:c.at,kind:"call",label:OC_LABEL[c.outcome]||c.outcome,amt:c.amt}); }
+  (l.notes||[]).forEach(function(n){ ev.push({at:n.at,kind:"note",body:n.body}); });
+  ev.sort(function(a,b){ return new Date(b.at)-new Date(a.at); });
+  if(!ev.length) return '<div class="muted tiny">No calls or notes yet.</div>';
+  return ev.map(function(e){ return e.kind==="call"
+    ? `<div class="tl"><span class="tl-dot" style="background:var(--acc)"></span><div class="grow"><span style="font-size:13px;font-weight:600">${esc(e.label)}</span>${e.amt?` <span class="tiny" style="color:var(--acc)">${money(e.amt)}</span>`:""}</div><span class="tiny muted">${rel(e.at)}</span></div>`
+    : `<div class="tl"><span class="tl-dot" style="background:var(--blue)"></span><div class="grow" style="font-size:13px">${esc(e.body)}</div><span class="tiny muted">${rel(e.at)}</span></div>`; }).join(""); }
+function celebrate(){ try{ const o=document.getElementById("overlay"); if(!o) return; const w=document.createElement("div"); w.className="confetti";
+  const cols=["var(--acc)","var(--amber)","var(--blue)","var(--violet)"]; let h="";
+  for(let i=0;i<26;i++){ h+=`<i style="left:${(Math.random()*100).toFixed(1)}%;background:${cols[i%cols.length]};animation-delay:${(Math.random()*0.5).toFixed(2)}s"></i>`; }
+  w.innerHTML=h; o.appendChild(w); setTimeout(function(){ if(w.parentNode) w.parentNode.removeChild(w); },1500); }catch(e){} }
 function viewLead(){ const l=S.leads.find(x=>x.id===openLeadId); if(!l){ go("leads"); return ""; }
   const t=NPC.temp(l); const notes=l.notes||[];
   return `
@@ -545,8 +582,10 @@ function viewLead(){ const l=S.leads.find(x=>x.id===openLeadId); if(!l){ go("lea
   ${l.apptAt?`<div class="card" style="margin-top:12px"><div class="row"><div class="grow"><div class="lab">Appointment</div><div style="margin-top:4px;font-weight:600">${esc(fmtWhen(l.apptAt))}</div></div><span class="chip s-appt">Appt</span></div></div>`:""}
   ${l.nextFollowUp?`<div class="coach" style="margin-top:12px"><div class="av">V</div><div class="grow"><div class="nm">Next follow-up</div><div class="msg">${rel(l.nextFollowUp).startsWith("in")?rel(l.nextFollowUp):`<b style="color:var(--red)">${rel(l.nextFollowUp)} — overdue</b>`}</div></div></div>`:""}
   <div class="card" style="margin-top:12px">
-    <div class="row" style="justify-content:space-between;margin-bottom:9px"><div class="lab">Activity</div><button class="btn btn-sm" data-note="${l.id}">+ Note</button></div>
-    ${notes.length?notes.map(n=>`<div class="divtop" style="margin-top:0;padding-top:9px;border-color:var(--ln)"><div style="font-size:13px">${esc(n.body)}</div><div class="tiny muted" style="margin-top:2px">${rel(n.at)}</div></div>`).join(""):`<div class="muted tiny">No activity yet.</div>`}
+    <div class="row" style="justify-content:space-between;margin-bottom:9px"><div class="lab">Activity &amp; notes</div><span class="tiny muted num">${leadDialCount(l)} logged</span></div>
+    <div class="field" style="margin:0 0 8px"><textarea id="lead-note" placeholder="Add a note…" style="min-height:44px"></textarea></div>
+    <button class="btn btn-primary btn-block btn-sm" data-act="addleadnote" data-id="${l.id}" style="margin-bottom:6px">Save note</button>
+    ${leadTimeline(l)}
   </div>
   <div class="row" style="gap:10px;margin-top:12px">
     <button class="btn btn-block btn-sm" data-edit="${l.id}">Edit</button>
@@ -637,7 +676,7 @@ function viewSettings(){ const tt=S.textTemplates;
     ${[["vm","Voicemail follow-up"],["callback","Callback"],["appt","Appointment"],["quote","Quote sent"],["na","No answer"],["won","Closed won"],["generic","Generic"]].map(([k,lb])=>`<div class="field"><label>${lb}</label><textarea data-tpl="${k}">${esc(tt[k]||"")}</textarea></div>`).join("")}
   </div>
   <button class="btn btn-primary btn-block btn-lg" data-act="savesettings" style="margin-top:13px">Save settings</button>
-  <div class="card" style="margin-top:16px"><div class="lab" style="margin-bottom:10px">Your phone</div><button class="btn btn-block btn-sm" data-act="connectphone">Use BagBoard on your phone</button><div class="tiny muted" style="margin-top:8px;line-height:1.5">Open it on your phone (same Wi-Fi) and dial straight from there. Requires starting in Wi-Fi mode.</div></div>
+  <div class="card" style="margin-top:16px"><div class="lab" style="margin-bottom:10px">Your phone</div><button class="btn btn-block btn-sm" data-act="connectphone">Pair your phone to dial</button><div class="tiny muted" style="margin-top:8px;line-height:1.5">Share one live list with your phone over Wi-Fi and dial from there. Start in Wi-Fi mode (type Y at launch).</div></div>
   <div class="card" style="margin-top:16px"><div class="lab" style="margin-bottom:4px">Data (stays on this device)</div>
     <div class="tiny muted" style="margin-bottom:12px;line-height:1.5">Saved in this browser at <b style="color:var(--t2)">${esc(dataLocationLabel())}</b>${SHARE_URL?" — a shared address; if it changes, restore from a backup.":"."} ${S.lastBackup?"Last backup "+rel(new Date(S.lastBackup).toISOString())+".":"No backup yet."}</div>
     <div class="row" style="gap:10px"><button class="btn btn-block btn-sm" data-act="importcsv">Import CSV file</button><button class="btn btn-block btn-sm" data-act="importpaste">Paste a list</button></div>
@@ -716,7 +755,10 @@ function renderDialer(){ document.getElementById("toast").innerHTML=""; const ap
     </div>
     <div style="padding:13px 16px 0"><div class="card" style="text-align:left;padding:11px 13px"><div class="lab">Last note</div><div style="font-size:13px;margin-top:4px">${esc((l.notes&&l.notes[0]&&l.notes[0].body)||"No prior contact.")}</div></div></div>
     <div class="row" style="gap:10px;padding:13px 16px 4px"><button class="btn btn-call btn-block btn-lg" data-sescall="${l.id}">${CALL_LBL}</button><button class="btn btn-text btn-block btn-lg" data-sestext="${l.id}">${TEXT_LBL}</button></div>
-    <div style="padding:8px 14px 24px"><div class="lab" style="text-align:center;margin-bottom:10px">Pick the outcome — Vinny files it & advances</div>
+    <div style="padding:8px 16px 0"><div class="lab" style="margin-bottom:7px">Quick text</div><div class="qtext">${[["vm","Voicemail"],["callback","Callback"],["appt","Appt"],["quote","Quote"],["won","Thanks"]].map(function(o){return `<button class="oc" data-sestextq="${l.id}" data-tk="${o[0]}">${o[1]}</button>`;}).join("")}</div></div>
+    <div style="padding:11px 16px 0"><textarea id="ses-note" placeholder="Quick note on this call…" style="width:100%;min-height:42px"></textarea>
+      <button class="btn btn-block btn-sm" data-act="sesnote" style="margin-top:6px">Save note</button></div>
+    <div style="padding:12px 14px 24px"><div class="lab" style="text-align:center;margin-bottom:10px">Pick the outcome — Vinny files it & advances</div>
       <div class="outcome-grid">${ocs.map(([id,lb,c])=>`<button class="oc" data-oc="${id}"><span class="dot" style="background:${c}"></span>${lb}</button>`).join("")}</div></div>
   </div>`; bind();
 }
@@ -729,10 +771,12 @@ function pickOutcome(id){ const l=S.leads.find(x=>x.id===session.ids[session.idx
   if((session.combo||0)>(S.bests.combo||0)) S.bests.combo=session.combo;
   Sound.play(id==="won"?"won":id==="appt"?"appt":CONTACT.includes(id)?"contact":"tick");
   const hit=[10,25,50,100].indexOf(session.dials)>=0;
-  if(id==="won") flash("Closed — "+money(l.value||0),true);
+  if(id==="won"){ flash("BOOM — Closed "+money(l.value||0)+"!",true); celebrate(); }
+  else if(id==="appt"){ flash("Appt set — nice!",true); celebrate(); }
+  else if(session.combo&&[3,5,10].indexOf(session.combo)>=0) flash("On fire — "+session.combo+" in a row!",true);
   else if(hit) flash(session.dials+" dials · keep going",true);
   else flash(oc.label);
-  if(hit) setTimeout(()=>Sound.play("milestone"),150);
+  if(hit||id==="won") setTimeout(()=>Sound.play("milestone"),150);
   save();
   const offerText=["vm","callback","appt","quote","na","won"].includes(id);
   setTimeout(()=>{ if(!session) return; if(offerText) suggestText(l,id,()=>advance()); else advance(); },600);
@@ -760,15 +804,16 @@ function addMenu(){ sheet(`<h2>Add leads</h2>
   <button class="btn btn-block btn-sm btn-ghost" data-act="dedupe">Remove duplicate numbers</button>`); }
 
 function connectSheet(){ const u=SHARE_URL;
-  if(u){ sheet(`<h2>Use BagBoard on your phone</h2>
-    <div class="tiny muted" style="margin-bottom:14px">Your phone must be on the <b>same Wi-Fi</b> as this computer.</div>
-    <div class="lab" style="margin-bottom:6px">Open this address on your phone</div>
+  if(u){ sheet(`<h2>Pair your phone</h2>
+    <div class="tiny muted" style="margin-bottom:14px">Your phone and this computer share <b>one live list</b> over Wi-Fi — dial on your phone and it updates here.</div>
+    <div class="lab" style="margin-bottom:6px">1 &middot; Open this address on your phone (same Wi-Fi)</div>
     <button class="copynum num" data-copynum="${esc(u)}" style="font-size:17px;width:100%;justify-content:center">${esc(u)} <span class="tiny" style="color:var(--acc)">copy</span></button>
-    <div class="tiny muted" style="margin-top:16px;line-height:1.7">1. On your phone, open your browser and type that address.<br>2. Tap the browser's Share icon &rarr; <b>Add to Home Screen</b> — now it opens like an app.<br>3. Tap any lead's number and your phone dials it directly.</div>
-    <div class="divtop tiny muted" style="line-height:1.6">Each phone keeps its own leads. To work the same list, import the same CSV on each device.</div>`); }
-  else { sheet(`<h2>Use BagBoard on your phone</h2>
-    <div class="tiny muted" style="line-height:1.7">You're running in <b>private</b> mode, so your phone can't reach it yet. Two quick steps:<br><br>
-    1. Close the black BagBoard window.<br>2. Start BagBoard again (double-click the launcher).<br>3. At <b>"Share on your Wi-Fi?"</b> type <b>Y</b> and press Enter.<br>4. Come back here and tap <b>Use it on your phone</b> again — your phone's address will appear.</div>`); } }
+    <div class="field" style="margin-top:16px"><label>2 &middot; The number you dial from (optional)</label><input id="dialfrom" type="tel" value="${esc(S.dialFrom||"")}" placeholder="Your phone number"/></div>
+    <button class="btn btn-block btn-sm" data-act="savedialfrom">Save my dialing number</button>
+    <div class="tiny muted" style="margin-top:16px;line-height:1.7">On the phone: open that address, tap Share &rarr; <b>Add to Home Screen</b> so it opens like an app, then tap a lead's number to dial. Every call you log syncs straight back here.</div>`); }
+  else { sheet(`<h2>Pair your phone</h2>
+    <div class="tiny muted" style="line-height:1.7">Phone pairing needs Wi-Fi sharing on. Quick steps:<br><br>
+    1. Close the black BagBoard window.<br>2. Start BagBoard again (double-click the launcher).<br>3. At <b>"Share on your Wi-Fi?"</b> type <b>Y</b> and press Enter.<br>4. Come back here and tap <b>Pair your phone</b> again &mdash; your phone's address appears.</div>`); } }
 function leadForm(l){ l=l||{};
   return `<h2>${l.id?"Edit lead":"New lead"}</h2>
   <div class="row" style="gap:10px"><div class="field grow"><label>First name</label><input id="f-first" value="${esc(l.first||"")}"/></div><div class="field grow"><label>Last name</label><input id="f-last" value="${esc(l.last||"")}"/></div></div>
@@ -803,7 +848,7 @@ function noteSheet(id){ sheet(`<h2>Add note</h2><div class="field"><textarea id=
 
 /* ---------- import ---------- */
 function importSheet(){ return `<h2>Paste leads</h2>
-  <div class="tiny muted" style="margin-bottom:12px">One per line: <b>First, Last, Phone, Product, Value</b> (only first + phone required). Tabs or commas both work.</div>
+  <div class="tiny muted" style="margin-bottom:12px">Paste rows from any CRM export — we auto-detect the name, phone and other columns. Only a name + phone are required; commas or tabs both work.</div>
   <div class="field"><textarea id="imp" style="min-height:150px" placeholder="Maria, Lopez, 555-201-7788, Premium Plan, 1200
 James, 555-330-1199
 Tara Wells, 555-887-2231, Pro Plan"></textarea></div>
@@ -813,22 +858,69 @@ function parseCSV(text){ const rows=[]; let row=[],cur="",q=false;
     if(q){ if(ch==='"'){ if(text[i+1]==='"'){ cur+='"'; i++; } else q=false; } else cur+=ch; }
     else { if(ch==='"') q=true; else if(ch===','||ch==='\t'){ row.push(cur); cur=""; } else if(ch==='\n'){ row.push(cur); rows.push(row); row=[]; cur=""; } else if(ch==='\r'){} else cur+=ch; } }
   if(cur.length||row.length){ row.push(cur); rows.push(row); } return rows; }
-function importText(text){ const rows=parseCSV(text).filter(r=>r.some(c=>c.trim())); if(!rows.length) return 0;
-  const h=rows[0].map(s=>s.trim().toLowerCase()); const hasHeader=h.includes("phone")||h.includes("first")||h.includes("name");
-  let n=0; const data=hasHeader?rows.slice(1):rows;
-  data.forEach(r=>{ let first="",last="",phone="",product="",value=0,company="",source="";
-    if(hasHeader){ const gi=k=>{ const i=h.indexOf(k); return i>=0?(r[i]||"").trim():""; };
-      phone=gi("phone"); first=gi("first"); last=gi("last");
-      if(!first&&h.indexOf("name")>=0){ const parts=gi("name").split(/\s+/).filter(Boolean); first=parts[0]||""; last=parts.slice(1).join(" "); }
-      product=gi("product"); value=parseInt(gi("value"))||0; company=gi("company"); source=gi("source"); }
-    else { const p=r.map(x=>x.trim()); const pi=p.findIndex(x=>digits(x).length>=7); if(pi===-1) return;
-      phone=p[pi]; const nm=p.slice(0,pi).join(" ").trim().split(/\s+/).filter(Boolean); first=nm[0]||"Lead"; last=nm.slice(1).join(" ");
-      product=p[pi+1]||""; value=parseInt(p[pi+2])||0; }
-    if(digits(phone).length<7) return;
-    S.leads.push(newLead({first:first||"Lead",last,phone,product,value,company,source:source||"Import"})); n++; });
-  return n; }
+function pDigits(s){ return String(s==null?"":s).replace(/\D/g,""); }
+function pNorm(s){ let d=pDigits(s); if(d.length===11&&d[0]==="1") d=d.slice(1); return d; }
+function looksPhone(s){ const raw=String(s==null?"":s).trim(); if(!raw||/@/.test(raw)) return false;
+  if(/^\d{4}[-/]\d{1,2}[-/]\d{1,2}/.test(raw)||/^\d{1,2}[-/]\d{1,2}[-/]\d{2,4}/.test(raw)) return false;
+  const d=pDigits(raw); return d.length===10||(d.length===11&&d[0]==="1"); }
+function mapCols(h){ const find=(pats,pref)=>{ let best=-1,bs=-1;
+    h.forEach((c,i)=>pats.forEach((p,pi)=>{ if(c.indexOf(p)>=0){ const sc=((pref&&pref.some(x=>c.indexOf(x)>=0))?100:0)+(20-pi); if(sc>bs){bs=sc;best=i;} } })); return best; };
+  return { phone:find(["mobile","cell","phone","tel","contact number","primary","number"],["mobile","cell"]),
+    first:find(["first","fname","given"]), last:find(["last","lname","surname","family"]),
+    name:find(["full name","name","contact","client","lead"]),
+    company:find(["company","business","organization","organisation","account"]),
+    product:find(["product","interest","plan","coverage"]),
+    value:find(["value","amount","premium","budget","deal","price"]),
+    source:find(["lead source","source","campaign","origin","referral"]),
+    notes:find(["notes","note","comment","remark","description","memo"]) }; }
+function importText(text){ const rows=parseCSV(text).filter(r=>r.some(c=>String(c).trim()));
+  if(!rows.length) return {added:0,skipped:0,dupes:0};
+  const orig=rows[0].map(x=>String(x==null?"":x).trim());
+  const h0=orig.map(x=>x.toLowerCase());
+  const headerish=h0.some(c=>/phone|mobile|cell|first|last|name|email|company|product|value|source|premium|note|status/.test(c));
+  const hasHeader=headerish && !rows[0].some(c=>looksPhone(c));
+  const idx=hasHeader?mapCols(h0):null; const data=hasHeader?rows.slice(1):rows;
+  const seen={}; S.leads.forEach(l=>{ const p=pNorm(l.phone); if(p) seen[p]=1; });
+  const stop=/^(yes|no|y|n|hot|warm|cold|new|old|true|false|lead|leads|client|customer|prospect|na|n\/a|none)$/i;
+  let added=0,skipped=0,dupes=0;
+  data.forEach(r=>{ const cell=i=>(i>=0&&i<r.length)?String(r[i]).trim():"";
+    const used={}; let first="",last="",phone="",product="",value=0,company="",source="",noteLead=""; let phoneIdx=-1;
+    if(hasHeader){
+      phoneIdx=(idx.phone>=0 && looksPhone(cell(idx.phone)))?idx.phone:r.findIndex(c=>looksPhone(c));
+      if(phoneIdx>=0){ phone=cell(phoneIdx); used[phoneIdx]=1; }
+      if(idx.first>=0){ first=cell(idx.first); used[idx.first]=1; }
+      if(idx.last>=0){ last=cell(idx.last); used[idx.last]=1; }
+      if(!first&&!last&&idx.name>=0){ const p=cell(idx.name).split(/\s+/).filter(Boolean); first=p[0]||""; last=p.slice(1).join(" "); }
+      if(idx.name>=0) used[idx.name]=1;
+      if(idx.product>=0){ product=cell(idx.product); used[idx.product]=1; }
+      if(idx.value>=0){ value=Math.round(parseFloat(cell(idx.value).replace(/[^0-9.]/g,""))||0); used[idx.value]=1; }
+      if(idx.company>=0){ company=cell(idx.company); used[idx.company]=1; }
+      if(idx.source>=0){ source=cell(idx.source); used[idx.source]=1; }
+      if(idx.notes>=0){ noteLead=cell(idx.notes); used[idx.notes]=1; }
+    } else {
+      phoneIdx=r.findIndex(c=>looksPhone(c)); if(phoneIdx<0){ skipped++; return; } phone=r[phoneIdx]; used[phoneIdx]=1;
+      const nameParts=[];
+      r.slice(0,phoneIdx).forEach((x,i)=>{ x=String(x).trim(); if(x&&!/@/.test(x)&&pDigits(x).length<7&&!stop.test(x)){ nameParts.push(x); used[i]=1; } });
+      const nm=nameParts.join(" ").split(/\s+/).filter(Boolean); first=nm[0]||"Lead"; last=nm.slice(1).join(" ");
+      for(let i=phoneIdx+1;i<r.length;i++){ const x=String(r[i]).trim(); if(!product&&x&&!/@/.test(x)&&pDigits(x).length<7){ product=x; used[i]=1; break; } }
+      for(let i=phoneIdx+1;i<r.length;i++){ if(used[i]) continue; const v=Math.round(parseFloat(String(r[i]).replace(/[^0-9.]/g,""))||0); if(v>0){ value=v; used[i]=1; break; } }
+    }
+    const np=pNorm(phone); if(np.length<10){ skipped++; return; }
+    if(seen[np]){ dupes++; return; } seen[np]=1;
+    const extras=[]; for(let i=0;i<r.length;i++){ if(used[i]) continue; const v=String(r[i]==null?"":r[i]).trim(); if(!v) continue;
+      extras.push((hasHeader&&orig[i])?(orig[i]+": "+v):v); }
+    const np2=[]; if(noteLead) np2.push(noteLead); if(extras.length) np2.push(extras.join(" · "));
+    const noteBody=np2.join("\n").trim();
+    const disp=np.length===10?np.replace(/(\d{3})(\d{3})(\d{4})/,"$1-$2-$3"):np;
+    const lead=newLead({first:first||"Lead",last:last,phone:disp,product:product,value:value,company:company,source:source||"Import"});
+    if(noteBody) lead.notes=[{at:new Date().toISOString(),body:noteBody}];
+    S.leads.push(lead); added++; });
+  return {added,skipped,dupes}; }
+function importSummary(res){ let m="Imported "+res.added+" lead"+(res.added!==1?"s":""); const x=[];
+  if(res.dupes) x.push(res.dupes+" duplicate"+(res.dupes!==1?"s":"")); if(res.skipped) x.push(res.skipped+" without a valid phone");
+  if(x.length) m+=" ("+x.join(", ")+" skipped)"; return m+"."; }
 function doImport(){ const raw=(document.getElementById("imp")||{}).value||""; if(!raw.trim()){ toast("Nothing to import"); return; }
-  const n=importText(raw); save(); closeSheet(); go("leads"); toast(`${NPC.name} imported ${n} lead${n!==1?"s":""}.`); }
+  const res=importText(raw); save(); closeSheet(); go("leads"); toast(importSummary(res)); }
 function newLead(o){ return Object.assign({id:uid(),first:"",last:"",phone:"",product:"",value:0,source:"",company:"",stage:"new",notes:[],lastContact:null,apptAt:null,nextFollowUp:new Date(Date.now()+HOUR).toISOString(),createdAt:new Date().toISOString()},o); }
 
 /* ---------- export / backup / restore ---------- */
@@ -870,12 +962,15 @@ function bind(){ const root=document.body;
     else if(a==="addlead") sheet(leadForm());
     else if(a==="importpaste") sheet(importSheet());
     else if(a==="doimport") doImport();
-    else if(a==="importcsv"){ closeSheet(); const fi=ensureFile("file-csv"); fi.onchange=()=>handleFile(fi,txt=>{ const n=importText(txt); save(); go("leads"); toast(`Imported ${n} lead${n!==1?"s":""} from file.`); }); fi.click(); }
+    else if(a==="importcsv"){ closeSheet(); const fi=ensureFile("file-csv"); fi.onchange=()=>handleFile(fi,txt=>{ const res=importText(txt); save(); go("leads"); toast(importSummary(res)); }); fi.click(); }
     else if(a==="restorefile"){ const fi=ensureFile("file-json"); fi.onchange=()=>handleFile(fi,txt=>{ try{ const d=JSON.parse(txt); if(!d||!Array.isArray(d.leads)) throw 0; S=normalize(d); save(); go("dashboard"); toast("Restored from file."); }catch(e){ toast("That file wasn't a valid backup."); } }); fi.click(); }
     else if(a==="exportcsv") exportCSV();
     else if(a==="backupfile") backupFile();
     else if(a==="dismissnotice"){ S.noticeDismissed=true; save(); render(); }
     else if(a==="snoozebackup"){ S.backupSnooze=Date.now()+7*DAY; save(); render(); }
+    else if(a==="savedialfrom"){ S.dialFrom=(val("dialfrom")||"").trim(); save(); toast("Saved your dialing number."); }
+    else if(a==="addleadnote"){ const l=S.leads.find(x=>x.id===b.dataset.id); const v=val("lead-note"); if(l&&v){ l.notes=l.notes||[]; l.notes.unshift({at:new Date().toISOString(),body:v}); save(); toast("Note saved."); render(); } else toast("Type a note first"); }
+    else if(a==="sesnote"){ if(session){ const l=S.leads.find(x=>x.id===session.ids[session.idx]); const v=val("ses-note"); if(l&&v){ l.notes=l.notes||[]; l.notes.unshift({at:new Date().toISOString(),body:v}); save(); toast("Note saved."); renderDialer(); } else toast("Type a note first"); } }
     else if(a==="dedupe") dedupe();
     else if(a==="createlead"){ const d=readLeadForm(); if(!d.first||!digits(d.phone)){ toast("Need a name and phone"); return; } S.leads.push(newLead(d)); save(); closeSheet(); go("leads"); toast(`Added ${d.first}.`); }
     else if(a==="updatelead"){ const l=S.leads.find(x=>x.id===b.dataset.id); if(l) Object.assign(l,readLeadForm()); save(); closeSheet(); render(); }
@@ -902,6 +997,7 @@ function bind(){ const root=document.body;
   root.querySelectorAll("[data-closesheet]").forEach(b=>b.onclick=closeSheet);
   root.querySelectorAll("[data-sescall]").forEach(b=>b.onclick=()=>{ const l=S.leads.find(x=>x.id===b.dataset.sescall); if(l) callLead(l,{silent:true}); });
   root.querySelectorAll("[data-sestext]").forEach(b=>b.onclick=()=>{ const l=S.leads.find(x=>x.id===b.dataset.sestext); if(l) textLead(l); });
+  root.querySelectorAll("[data-sestextq]").forEach(b=>b.onclick=()=>{ const l=S.leads.find(x=>x.id===b.dataset.sestextq); if(l) textLead(l,b.dataset.tk); });
   root.querySelectorAll("[data-oc]").forEach(b=>b.onclick=()=>pickOutcome(b.dataset.oc));
   root.querySelectorAll("[data-rapid]").forEach(b=>b.onclick=()=>rapidNext(b.dataset.rapid));
   root.querySelectorAll("[data-auto]").forEach(b=>b.onclick=()=>{ if(session){ session.auto=+b.dataset.auto; renderRapid(); } });
@@ -912,7 +1008,7 @@ function saveSettings(){ S.agent=val("set-agent")||"You"; S.targets.dials=parseI
   document.querySelectorAll("[data-tpl]").forEach(t=>{ S.textTemplates[t.dataset.tpl]=t.value; }); save(); toast("Settings saved."); }
 
 /* ---------- boot ---------- */
-render();
+if(SYNC){ bootSync(); } else { render(); }
 </script>
 </body>
 </html>
