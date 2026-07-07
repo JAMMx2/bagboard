@@ -16,43 +16,34 @@ Your leads live in your own browser; you dial them from your own phone.
 
 ## Run it from your terminal (copy-paste)
 
-One line downloads the app and opens it — nothing to install.
+One command downloads BagBoard and gets it running — nothing to install.
 
-**Windows** (PowerShell):
+**Windows** (PowerShell) — downloads it and starts the local server at http://localhost:8753:
+
+```powershell
+$d="$env:USERPROFILE\BagBoard"; ni $d -ItemType Directory -Force | Out-Null; irm https://raw.githubusercontent.com/JAMMx2/bagboard/main/index.html -OutFile "$d\index.html"; irm https://raw.githubusercontent.com/JAMMx2/bagboard/main/server.ps1 -OutFile "$d\server.ps1"; powershell -NoProfile -ExecutionPolicy Bypass -File "$d\server.ps1"
+```
+
+It installs to `%USERPROFILE%\BagBoard`, opens your browser at **http://localhost:8753**, and asks about Wi-Fi sharing — press **Enter** for private, or **Y** to dial from your phone. Keep the window open while you work; re-run any time with `powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\BagBoard\server.ps1"`.
+
+**macOS / Linux** (Terminal) — downloads it and serves it locally:
+
+```bash
+d=~/bagboard; mkdir -p "$d" && curl -fsSL https://raw.githubusercontent.com/JAMMx2/bagboard/main/index.html -o "$d/index.html" && cd "$d" && python3 -m http.server 8753 --bind 127.0.0.1
+```
+
+Then open **http://localhost:8753**. Drop `--bind 127.0.0.1` to let phones on the same Wi-Fi open it too.
+
+<details>
+<summary><b>Just want the app file (no server)?</b></summary>
+
+Download `index.html` and open it in any browser — the whole app, offline, no server:
 
 ```powershell
 irm https://raw.githubusercontent.com/JAMMx2/bagboard/main/index.html -OutFile "$HOME\Desktop\BagBoard.html"; ii "$HOME\Desktop\BagBoard.html"
 ```
 
-**macOS** (Terminal):
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/JAMMx2/bagboard/main/index.html -o ~/Desktop/BagBoard.html && open ~/Desktop/BagBoard.html
-```
-
-**Linux** (Terminal):
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/JAMMx2/bagboard/main/index.html -o ~/BagBoard.html && xdg-open ~/BagBoard.html
-```
-
-<details>
-<summary><b>Want the localhost server + phone sharing?</b></summary>
-
-**Windows** — downloads and launches the one-file launcher (asks whether to share on Wi-Fi):
-
-```powershell
-irm https://github.com/JAMMx2/bagboard/releases/latest/download/BagBoard.bat -OutFile "$env:TEMP\BagBoard.bat"; & "$env:TEMP\BagBoard.bat"
-```
-
-**macOS / Linux** — serves the app at http://localhost:8753:
-
-```bash
-mkdir -p ~/bagboard && curl -fsSL https://raw.githubusercontent.com/JAMMx2/bagboard/main/index.html -o ~/bagboard/index.html && cd ~/bagboard && python3 -m http.server 8753 --bind 127.0.0.1
-```
-
-Then open **http://localhost:8753**. Drop `--bind 127.0.0.1` to let phones on the same Wi-Fi open it too.
-
+macOS / Linux: `curl -fsSL https://raw.githubusercontent.com/JAMMx2/bagboard/main/index.html -o ~/BagBoard.html && (open ~/BagBoard.html || xdg-open ~/BagBoard.html)`
 </details>
 
 ## Get it running — one double-click
