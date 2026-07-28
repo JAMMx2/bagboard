@@ -26,13 +26,19 @@ $d="$env:USERPROFILE\BagBoard"; ni $d -ItemType Directory -Force | Out-Null; irm
 
 It installs to `%USERPROFILE%\BagBoard`, opens your browser at **http://localhost:8753**, and asks about Wi-Fi sharing — press **Enter** for private, or **Y** to dial from your phone. Keep the window open while you work; re-run any time with `powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\BagBoard\server.ps1"`.
 
-**macOS / Linux** (Terminal) — downloads it and serves it locally:
+**macOS / Linux** (Terminal) — downloads BagBoard and starts the local server so your phone can sync:
 
 ```bash
-d=~/bagboard; mkdir -p "$d" && curl -fsSL https://raw.githubusercontent.com/JAMMx2/bagboard/main/index.html -o "$d/index.html" && cd "$d" && python3 -m http.server 8753 --bind 127.0.0.1
+d=~/bagboard; mkdir -p "$d" && curl -fsSL https://raw.githubusercontent.com/JAMMx2/bagboard/main/index.html -o "$d/index.html" && curl -fsSL https://raw.githubusercontent.com/JAMMx2/bagboard/main/server.rb -o "$d/server.rb" && cd "$d" && ruby server.rb
 ```
 
-Then open **http://localhost:8753**. Drop `--bind 127.0.0.1` to let phones on the same Wi-Fi open it too.
+It opens your browser at **http://localhost:8753** and asks about Wi-Fi sharing — press **Enter** for private, or **Y** to dial from your phone. **Ruby ships with macOS** (including Apple Silicon — M1/M2/M3/M4), so there's nothing to install and nothing to download from Apple. Keep the window open while you work; re-run any time with `cd ~/bagboard && ruby server.rb`.
+
+> **Just want it open right now?** One line, no server, works on every Mac — saves your leads in that browser on this Mac:
+>
+> ```bash
+> curl -fsSL https://raw.githubusercontent.com/JAMMx2/bagboard/main/index.html -o ~/BagBoard.html && open ~/BagBoard.html
+> ```
 
 <details>
 <summary><b>Just want the app file (no server)?</b></summary>
@@ -50,13 +56,15 @@ macOS / Linux: `curl -fsSL https://raw.githubusercontent.com/JAMMx2/bagboard/mai
 
 **Windows (easiest):** download **[`BagBoard.bat`](https://github.com/JAMMx2/bagboard/releases/latest/download/BagBoard.bat)** and **double-click it**. That's the whole setup — it launches and opens in your browser. No unzip, no install, no admin. *(If Windows shows a "protected your PC" box the first time, click **More info -> Run anyway**.)*
 
+**macOS (easiest):** download **[`Start-BagBoard-Mac.command`](https://github.com/JAMMx2/bagboard/raw/main/Start-BagBoard-Mac.command)** and **double-click it**. The first time only, **right-click it → Open → Open** (macOS asks once about an unidentified developer). It downloads BagBoard and starts the local server — same phone-sync as Windows, and nothing to install (Ruby is already on your Mac). *(`BagBoard.bat` is Windows-only — it won't run on a Mac; use this instead.)*
+
 **Any computer or phone:** download **[index.html](https://github.com/JAMMx2/bagboard/raw/main/index.html)** and open it in any browser — that's the entire app.
 
-**Whole project (developers):** grab **[the latest release](https://github.com/JAMMx2/bagboard/releases/latest)** (`bagboard.zip`) or clone the repo. `SETUP-GUIDE.md` has step-by-step instructions.
+**Whole project (developers):** grab **[the latest release](https://github.com/JAMMx2/bagboard/releases/latest)** (`bagboard.zip`) or clone the repo. `SETUP-GUIDE.md` (Windows) and `SETUP-GUIDE-MAC.md` (macOS) have step-by-step instructions.
 
 > First thing in the app: open **Settings**, set your name, then **Add** or **Import** your leads.
 
-**Run it on your computer *and* phone (optional):** launched via `BagBoard.bat` / `server.ps1` it keeps your leads in a small database on your PC. Type **Y** at startup to share on Wi-Fi, then open the shown address on your phone — you dial the **same live list** from your phone (your own number, a normal call) and every outcome syncs back. Private by default; the shared endpoint is token-gated, so use a network you trust.
+**Run it on your computer *and* phone (optional):** launched via `BagBoard.bat` / `server.ps1` (Windows) or `Start-BagBoard-Mac.command` / `server.rb` (Mac) it keeps your leads in a small database on your computer. Type **Y** at startup to share on Wi-Fi, then open the shown address on your phone — you dial the **same live list** from your phone (your own number, a normal call) and every outcome syncs back. Private by default; the shared endpoint is token-gated, so use a network you trust.
 
 ## What it does
 - Lines up who to call next and walks you through them one at a time — number, outcome, next.
@@ -72,10 +80,10 @@ macOS / Linux: `curl -fsSL https://raw.githubusercontent.com/JAMMx2/bagboard/mai
 Everything is stored in your browser's `localStorage` on the device you use — no accounts, no network calls, no tracking. Clearing your browser wipes it, so use **Settings -> Download backup** now and then. See [SECURITY.md](SECURITY.md) and the [security audit](AUDIT.md).
 
 ## Dial from your phone (pair it)
-Launch BagBoard with **BagBoard.bat** (or `server.ps1`) and type **Y** at "Share on your Wi-Fi?". It prints an address like `http://192.168.1.20:8753`. Open that on your phone (same Wi-Fi) and:
+Launch BagBoard with **BagBoard.bat** / `server.ps1` (Windows) or **Start-BagBoard-Mac.command** / `ruby server.rb` (Mac) and type **Y** at "Share on your Wi-Fi?". It prints an address like `http://192.168.1.20:8753`. Open that on your phone (same Wi-Fi) and:
 
 - You dial the **same leads** as the computer — tap a number and your phone places the call with **your own number** (no VoIP, no fees).
-- Outcomes you log on the phone **sync back** to the computer, and vice-versa. The host PC holds the shared database (`BagBoard-data.json` in your user folder), so your list also survives a browser-cache wipe.
+- Outcomes you log on the phone **sync back** to the computer, and vice-versa. The host computer holds the shared database (`BagBoard-data.json` in your user folder), so your list also survives a browser-cache wipe.
 - Tap Share → **Add to Home Screen** so it opens like an app.
 
 **Standalone mode still works:** open `index.html` as a plain file and it's the original offline, per-device app (localStorage, no sync).
