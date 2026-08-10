@@ -5,7 +5,7 @@
 **A single-file call CRM. No login, no servers, no monthly fees.**
 Your leads live in your own browser; you dial them from your own phone.
 
-[![Download](https://img.shields.io/badge/Download-v1.2.0-2ea44f?style=for-the-badge)](https://github.com/JAMMx2/bagboard/releases/latest)
+[![Download](https://img.shields.io/badge/Download-v1.3.0-2ea44f?style=for-the-badge)](https://github.com/JAMMx2/bagboard/releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-3b82f6?style=for-the-badge)](LICENSE)
 ![Single file](https://img.shields.io/badge/single_file-~89_KB-6b7280?style=for-the-badge)
 ![No dependencies](https://img.shields.io/badge/dependencies-none-2ea44f?style=for-the-badge)

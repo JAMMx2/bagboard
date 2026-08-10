@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.3.0 — 2026-08
+
+**Import correctness — fixes data that was silently mangled on import:**
+- **Google Contacts exports no longer break.** A column like `Phone 1 - Value` was being read as the deal *value*, turning phone numbers into billion-dollar amounts. The value detector now refuses phone/zip/number columns.
+- **Dates and second phone numbers are never mistaken for money.** A `2024-01-15` cell or a secondary phone used to become a huge dollar value; a hardened money parser rejects phone-shaped and date-shaped cells and caps absurd magnitudes.
+- **"Last, First" names import correctly.** `Smith, John` now becomes First = John, Last = Smith (previously First = "Smith,").
+
+**Phone-sync — hardened so two devices can work the same list without losing data:**
+- **Merge instead of overwrite.** Call logs now *union* across devices (no more "my logged calls disappeared"), lead edits resolve by most-recent-change, and deletes propagate via tombstones. State converges automatically.
+- **Reliable push.** A dropped network POST used to silently desync until the next change; pushes are now confirmed and retried with backoff.
+- **Erase everything now propagates** to paired devices instead of coming back on the next sync.
+
 ## 1.2.0 — 2026-07
 
 - **Add notes anywhere.** A note box right on the dial screen and the lead view — no digging through menus.
