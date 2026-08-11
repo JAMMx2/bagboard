@@ -432,6 +432,23 @@ let leadFilter="all", leadSort="priority", leadSearch="", bulkMode=false;
 let selected=new Set();
 function go(s){ screen=s; if(s!=="leads"){ bulkMode=false; selected.clear(); } render(); window.scrollTo(0,0); }
 function toast(msg){ const el=document.getElementById("toast"); el.innerHTML=`<div class="toast">${esc(msg)}</div>`; clearTimeout(el._t); el._t=setTimeout(()=>el.innerHTML="",2600); }
+/* ---------- undo for deletes (sync-safe: revival wins by timestamp) ---------- */
+let lastDeleted=null;
+function stashDeleted(leads){ try{ lastDeleted={leads:JSON.parse(JSON.stringify(leads))}; }catch(e){ lastDeleted=null; } }
+function undoDelete(){ if(!lastDeleted||!lastDeleted.leads.length) return;
+  const now=Date.now(); let n=0;
+  lastDeleted.leads.forEach(l=>{ if(!l||!l.id) return;
+    delete S.tombstones[l.id];
+    l._m=now;                                   // newer than the tombstone → survives every merge
+    if(!S.leads.some(x=>x.id===l.id)){ S.leads.push(l); n++; } });
+  lastDeleted=null; save(); render();
+  toast(n===1?"Lead restored.":n+" leads restored.");
+}
+function toastUndo(msg){ const el=document.getElementById("toast");
+  el.innerHTML=`<div class="toast">${esc(msg)} <button id="undo-del" style="margin-left:10px;background:none;border:none;color:var(--acc);font-weight:700;font-size:13px;cursor:pointer;padding:2px 4px">Undo</button></div>`;
+  const u=document.getElementById("undo-del"); if(u) u.onclick=()=>{ clearTimeout(el._t); el.innerHTML=""; undoDelete(); };
+  clearTimeout(el._t); el._t=setTimeout(()=>{ el.innerHTML=""; },7000);
+}
 
 /* ---------- native actions ---------- */
 function callLead(l,opts){ opts=opts||{}; if(!opts.silent) log(l,"_dialed");
@@ -607,7 +624,7 @@ function viewLead(){ const l=S.leads.find(x=>x.id===openLeadId); if(!l){ go("lea
       <button class="btn btn-text btn-block" data-textmenu="${l.id}">${TEXT_LBL}</button>
     </div>
   </div>
-  ${l.apptAt?`<div class="card" style="margin-top:12px"><div class="row"><div class="grow"><div class="lab">Appointment</div><div style="margin-top:4px;font-weight:600">${esc(fmtWhen(l.apptAt))}</div></div><span class="chip s-appt">Appt</span></div></div>`:""}
+  ${l.apptAt?`<div class="card" style="margin-top:12px"><div class="row"><div class="grow"><div class="lab">Appointment</div><div style="margin-top:4px;font-weight:600">${esc(fmtWhen(l.apptAt))}</div></div><span class="chip s-appt">Appt</span></div><button class="btn btn-block btn-sm" data-act="ics1" data-id="${l.id}" style="margin-top:10px">Add to phone calendar</button></div>`:""}
   ${l.nextFollowUp?`<div class="coach" style="margin-top:12px"><div class="av">V</div><div class="grow"><div class="nm">Next follow-up</div><div class="msg">${rel(l.nextFollowUp).startsWith("in")?rel(l.nextFollowUp):`<b style="color:var(--red)">${rel(l.nextFollowUp)} — overdue</b>`}</div></div></div>`:""}
   <div class="card" style="margin-top:12px">
     <div class="row" style="justify-content:space-between;margin-bottom:9px"><div class="lab">Activity &amp; notes</div><span class="tiny muted num">${leadDialCount(l)} logged</span></div>
@@ -622,6 +639,60 @@ function viewLead(){ const l=S.leads.find(x=>x.id===openLeadId); if(!l){ go("lea
   </div>`;
 }
 
+/* ---------- source performance: which lead source actually makes money ---------- */
+function sourceStats(){
+  const by=Object.create(null), leadIdx=Object.create(null);
+  S.leads.forEach(l=>{ const k=(l.source||"").trim()||"No source";
+    leadIdx[l.id]=k; (by[k]=by[k]||{n:0,won:0,banked:0,appts:0}).n++;
+    if(l.stage==="won") by[k].won++; });
+  S.calls.forEach(c=>{ const k=leadIdx[c.leadId]; if(!k) return; const e=by[k];
+    if(c.outcome==="appt") e.appts++;
+    if(c.outcome==="won") e.banked+=(c.amt||0); });
+  return Object.keys(by).map(k=>[k,by[k]])
+    .sort((a,b)=>(b[1].banked-a[1].banked)||(b[1].won-a[1].won)||(b[1].n-a[1].n)).slice(0,8);
+}
+function sourceRows(){
+  const rows=sourceStats();
+  if(!rows.length) return '<div class="muted tiny">No leads yet.</div>';
+  const onlyUntagged=rows.length===1&&rows[0][0]==="No source";
+  const maxB=Math.max(1,...rows.map(r=>r[1].banked)), useMoney=rows.some(r=>r[1].banked>0);
+  const maxN=Math.max(1,...rows.map(r=>r[1].n));
+  return rows.map(([k,e])=>{
+    const w=useMoney?Math.round(e.banked/maxB*100):Math.round(e.n/maxN*100);
+    const bits=[e.n+" lead"+(e.n===1?"":"s")]; if(e.appts) bits.push(e.appts+" appt"+(e.appts===1?"":"s")); if(e.won) bits.push(e.won+" won");
+    return `<div class="plrow"><span class="k" style="width:auto;min-width:86px">${esc(k)}</span>
+      <span class="track"><i style="width:${w}%;background:${e.banked>0?"var(--acc)":"var(--blue)"}"></i></span>
+      <span class="c num" style="width:auto">${e.banked>0?money(e.banked):bits[0]}</span></div>
+      <div class="tiny muted" style="margin:-4px 0 8px 2px">${esc(bits.join(" · "))}</div>`;
+  }).join("")+(onlyUntagged?'<div class="tiny muted" style="margin-top:6px">Tag leads with a <b>source</b> (Facebook, referral, purchased list…) and this shows which one actually pays.</div>':"");
+}
+
+/* ---------- appointments → phone calendar (.ics) ---------- */
+function icsEsc(s){ return String(s||"").replace(/\\/g,"\\\\").replace(/;/g,"\\;").replace(/,/g,"\\,").replace(/\r?\n/g,"\\n"); }
+function icsLocal(d){ d=new Date(d); const p=n=>("0"+n).slice(-2);
+  return ""+d.getFullYear()+p(d.getMonth()+1)+p(d.getDate())+"T"+p(d.getHours())+p(d.getMinutes())+"00"; }
+function icsForAppts(list){
+  const stamp=new Date().toISOString().replace(/[-:]/g,"").slice(0,15)+"Z";
+  const ev=list.map(l=>{
+    const start=new Date(l.apptAt), end=new Date(start.getTime()+30*60000);
+    const what=[l.product,l.value?money(l.value):null].filter(Boolean).join(" · ");
+    return ["BEGIN:VEVENT","UID:"+l.id+"@bagboard","DTSTAMP:"+stamp,
+      "DTSTART:"+icsLocal(start),"DTEND:"+icsLocal(end),
+      "SUMMARY:"+icsEsc("Appt: "+((l.first||"")+" "+(l.last||"")).trim()+(what?" — "+what:"")),
+      "DESCRIPTION:"+icsEsc((l.phone?"Phone: "+l.phone+"\n":"")+(l.company?l.company+"\n":"")+"From BagBoard"),
+      "BEGIN:VALARM","TRIGGER:-PT30M","ACTION:DISPLAY","DESCRIPTION:Appointment soon","END:VALARM",
+      "END:VEVENT"].join("\r\n");
+  }).join("\r\n");
+  return ["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//BagBoard//EN","CALSCALE:GREGORIAN",ev,"END:VCALENDAR"].join("\r\n");
+}
+function icsName(l){ return ("appt-"+(l.first||"lead")+"-"+dayKey(l.apptAt||Date.now())).toLowerCase().replace(/[^\w\-]+/g,"")+".ics"; }
+function futureAppts(){ const cut=startOfDay(Date.now()).getTime();
+  return S.leads.filter(l=>l.apptAt&&!DEAD.includes(l.stage)&&new Date(l.apptAt).getTime()>=cut)
+    .sort((a,b)=>new Date(a.apptAt)-new Date(b.apptAt)); }
+function exportICS(){ const list=futureAppts(); if(!list.length){ toast("No upcoming appointments to export."); return; }
+  download("bagboard-appointments-"+dayKey(Date.now())+".ics", icsForAppts(list), "text/calendar");
+  toast(list.length+" appointment"+(list.length>1?"s":"")+" exported — open the file to add them to your calendar."); }
+
 /* ---------- AGENDA ---------- */
 function viewAgenda(){
   const items=[]; S.leads.forEach(l=>{ if(DEAD.includes(l.stage)||l.stage==="won") return;
@@ -630,7 +701,8 @@ function viewAgenda(){
   if(!items.length) return `<div class="empty"><div class="em">◷</div>Nothing scheduled.<br><br>Set appointments and follow-ups from a lead, and they'll show up here.</div>`;
   const order=["Overdue","Today","Tomorrow","This week","Later"]; const groups={};
   items.forEach(it=>{ const b=bucketOf(it.when); (groups[b]=groups[b]||[]).push(it); });
-  return order.filter(g=>groups[g]).map(g=>`
+  const icsBtn=futureAppts().length?`<button class="btn btn-block btn-sm" data-act="ics" style="margin-bottom:14px">Add appointments to phone calendar (.ics)</button>`:"";
+  return icsBtn+order.filter(g=>groups[g]).map(g=>`
     <div class="grp"><div class="h ${g==="Overdue"?"over":""}"><span class="gl">${g}</span><span class="tiny muted num">${groups[g].length}</span></div>
     ${groups[g].map(it=>{ const over=new Date(it.when)<new Date()&&(g==="Overdue");
       return `<div class="ai" data-open="${it.l.id}"><span class="when ${over?"over":""}">${esc(fmtWhen(it.when))}</span>
@@ -667,6 +739,10 @@ function viewStats(){
     <div class="lab" style="margin-bottom:12px">Pipeline by stage</div>
     <div class="pl">${plStages.map(([k,lb,c])=>{ const n=stageCounts[k]||0;
       return `<div class="plrow"><span class="k">${lb}</span><span class="track"><i style="width:${Math.round(n/maxS*100)}%;background:${c}"></i></span><span class="c num">${n}</span></div>`; }).join("")}</div>
+  </div>
+  <div class="card" style="margin-top:11px">
+    <div class="lab" style="margin-bottom:12px">Where the money comes from</div>
+    ${sourceRows()}
   </div>
   <div class="two" style="margin-top:11px">
     <div class="stat"><div class="lab">Closed (all-time)</div><div class="v num">${wonAll.length}</div></div>
@@ -1023,7 +1099,9 @@ function bind(){ const root=document.body;
     else if(a==="wipe"){ if(confirm("Erase ALL leads and data on this device? This can't be undone.")){ const tomb={},now=Date.now(); S.leads.forEach(l=>{ if(l&&l.id) tomb[l.id]=now; }); S=blankState(); S.tombstones=tomb; save(); go("dashboard"); } }
     else if(a==="toggleselect"){ bulkMode=!bulkMode; selected.clear(); render(); }
     else if(a==="bulkstage"){ if(!selected.size){ toast("Select some leads first"); return; } sheet(stageSheet(null,true)); }
-    else if(a==="bulkdelete"){ if(!selected.size){ toast("Select some leads first"); return; } if(confirm("Delete "+selected.size+" lead(s)?")){ const now=Date.now(); selected.forEach(id=>{ S.tombstones[id]=now; }); S.leads=S.leads.filter(l=>!selected.has(l.id)); selected.clear(); bulkMode=false; save(); go("leads"); toast("Deleted."); } }
+    else if(a==="bulkdelete"){ if(!selected.size){ toast("Select some leads first"); return; } if(confirm("Delete "+selected.size+" lead(s)?")){ const now=Date.now(); stashDeleted(S.leads.filter(l=>selected.has(l.id))); selected.forEach(id=>{ S.tombstones[id]=now; }); const n=selected.size; S.leads=S.leads.filter(l=>!selected.has(l.id)); selected.clear(); bulkMode=false; save(); go("leads"); toastUndo("Deleted "+n+" lead"+(n>1?"s":"")+"."); } }
+    else if(a==="ics") exportICS();
+    else if(a==="ics1"){ const l=S.leads.find(x=>x.id===b.dataset.id); if(l&&l.apptAt){ download(icsName(l),icsForAppts([l]),"text/calendar"); toast("Calendar file saved — open it to add the appointment."); } }
   });
 
   root.querySelectorAll("[data-copynum]").forEach(b=>b.onclick=()=>{ const v=b.dataset.copynum; if(v){ copyText(v,v+" copied — dial it on your phone."); Sound.play("tick"); } });
@@ -1033,7 +1111,7 @@ function bind(){ const root=document.body;
   root.querySelectorAll("[data-note]").forEach(b=>b.onclick=()=>noteSheet(b.dataset.note));
   root.querySelectorAll("[data-edit]").forEach(b=>b.onclick=()=>{ const l=S.leads.find(x=>x.id===b.dataset.edit); if(l) sheet(leadForm(l)); });
   root.querySelectorAll("[data-stage]").forEach(b=>b.onclick=()=>{ const l=S.leads.find(x=>x.id===b.dataset.stage); if(l) sheet(stageSheet(l,false)); });
-  root.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>{ const id=b.dataset.del; if(confirm("Delete this lead?")){ S.tombstones[id]=Date.now(); S.leads=S.leads.filter(l=>l.id!==id); save(); go("leads"); toast("Deleted."); } });
+  root.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>{ const id=b.dataset.del; if(confirm("Delete this lead?")){ stashDeleted(S.leads.filter(l=>l.id===id)); S.tombstones[id]=Date.now(); S.leads=S.leads.filter(l=>l.id!==id); save(); go("leads"); toastUndo("Deleted."); } });
   root.querySelectorAll("[data-setstage]").forEach(b=>b.onclick=()=>{ const s=b.dataset.s;
     if(b.dataset.setstage==="_bulk"){ S.leads.forEach(l=>{ if(selected.has(l.id)){ l.stage=s; touch(l); } }); selected.clear(); bulkMode=false; save(); closeSheet(); go("leads"); toast("Updated."); }
     else { const l=S.leads.find(x=>x.id===b.dataset.setstage); if(l){ l.stage=s; touch(l); } save(); closeSheet(); render(); } });

@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.4.0 — 2026-08
+
+- **Undo deletes.** Deleting a lead (or a bulk selection) now shows an **Undo** button for 7 seconds. Restore is sync-safe — an undone lead survives phone-sync merges instead of being re-deleted by an old tombstone.
+- **"Where the money comes from."** The Stats screen now breaks your pipeline down **by lead source**: how many leads, appointments, wins, and banked dollars each source produced — so you know whether the purchased list, Facebook, or referrals actually pay.
+- **Appointments → phone calendar.** One tap exports upcoming appointments as a standard **.ics** file (with a 30-minute reminder) from the Agenda screen, or a single appointment from the lead view — open it and it lands in your phone/Google/Apple calendar.
+
 ## 1.3.0 — 2026-08
 
 **Import correctness — fixes data that was silently mangled on import:**
