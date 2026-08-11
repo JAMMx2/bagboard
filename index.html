@@ -228,7 +228,7 @@ function blankState(){
   return {
     agent:"You", leads:[], calls:[],
     streak:{count:0,last:""}, bests:{dayDials:0,streak:0,combo:0}, sound:true,
-    lastBackup:0, backupSnooze:0, noticeDismissed:false, dialFrom:"", updatedAt:0,
+    lastBackup:0, backupSnooze:0, noticeDismissed:false, dialFrom:"", updatedAt:0, tombstones:{},
     targets:{dials:30,contacts:8,appts:2},
     textTemplates:{
       vm:"Hi {first}, this is {agent} — I just tried you about the {product} information you asked about. Call or text me back when you get a moment.",
@@ -251,7 +251,8 @@ function normalize(st){ const b=blankState(); if(!st||typeof st!=="object") retu
   if(!st.bests||typeof st.bests!=="object") st.bests={dayDials:0,streak:0,combo:0};
   st.lastBackup=parseInt(st.lastBackup)||0; st.backupSnooze=parseInt(st.backupSnooze)||0; st.noticeDismissed=!!st.noticeDismissed;
   st.dialFrom=(typeof st.dialFrom==="string")?st.dialFrom:""; st.updatedAt=parseInt(st.updatedAt)||0;
-  st.leads=st.leads.filter(l=>l&&typeof l==="object").map(l=>{ if(!VS[l.stage]) l.stage="new"; if(!Array.isArray(l.notes)) l.notes=[]; l.value=parseInt(l.value)||0; return l; });
+  if(!st.tombstones||typeof st.tombstones!=="object") st.tombstones={};
+  st.leads=st.leads.filter(l=>l&&typeof l==="object").map(l=>{ if(!VS[l.stage]) l.stage="new"; if(!Array.isArray(l.notes)) l.notes=[]; l.value=parseInt(l.value)||0; l._m=parseInt(l._m)||0; return l; });
   st.calls=st.calls.filter(c=>c&&typeof c==="object");
   return st; }
 let S=load();
@@ -260,21 +261,48 @@ let _saveWarned=false;
 function save(){ S.updatedAt=Date.now(); try{ localStorage.setItem(KEY,JSON.stringify(S)); _saveWarned=false; }catch(e){ if(!_saveWarned){ _saveWarned=true; try{ toast("Couldn't save — storage may be full or disabled. Download a backup."); }catch(_){} } } schedulePush(); }
 /* ---------- shared store: file-backed DB via the BagBoard server + live sync to your phone ---------- */
 const SYNC=!!window.BB_STORE; const STORE=window.BB_STORE||"/api/state";
-let _pushT=null, _pulling=false, _lastSig="";
-function stateSig(x){ try{ return JSON.stringify([x.agent,x.dialFrom,x.targets,x.textTemplates,x.leads,x.calls,x.streak,x.bests]); }catch(e){ return Math.random()+""; } }
-function pushState(){ if(!SYNC) return; const sig=stateSig(S); if(sig===_lastSig) return; _lastSig=sig;
-  try{ fetch(STORE,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(S)}).catch(function(){}); }catch(e){} }
+let _pushT=null, _pulling=false, _lastSig="", _pushFails=0;
+function stateSig(x){ try{ return JSON.stringify([x.agent,x.dialFrom,x.targets,x.textTemplates,x.leads,x.calls,x.streak,x.bests,x.tombstones]); }catch(e){ return Math.random()+""; } }
+/* ---- conflict-tolerant merge: two devices can work the same list without clobbering each other ---- */
+function callKey(c){ return (c&&c.at||"")+"|"+(c&&c.leadId||"")+"|"+(c&&c.outcome||""); }
+function mergeCalls(a,b){ const seen=Object.create(null), out=[];
+  (a||[]).concat(b||[]).forEach(function(c){ if(!c||typeof c!=="object") return; const k=callKey(c); if(!seen[k]){ seen[k]=1; out.push(c); } });
+  out.sort(function(x,y){ return new Date(y.at)-new Date(x.at); }); return out; }
+function mergeTombstones(a,b){ const out=Object.assign({},a||{}); const bb=b||{}; Object.keys(bb).forEach(function(id){ out[id]=Math.max(out[id]||0, bb[id]||0); }); return out; }
+function mergeLeads(localLeads,remoteLeads,tomb){ const map=Object.create(null);
+  (localLeads||[]).forEach(function(l){ if(l&&l.id) map[l.id]=l; });
+  (remoteLeads||[]).forEach(function(r){ if(!r||!r.id) return; const cur=map[r.id];
+    if(!cur) map[r.id]=r; else if((r._m||0) > (cur._m||0)) map[r.id]=r; });
+  const out=[]; Object.keys(map).forEach(function(id){ const l=map[id]; const t=tomb[id]||0; if(t && t>=(l._m||0)) return; out.push(l); });
+  return out; }
+function mergeState(local,remote){ const rNewer=(remote.updatedAt||0) > (local.updatedAt||0);
+  const merged=Object.assign({}, local);
+  if(rNewer){ merged.agent=remote.agent; merged.dialFrom=remote.dialFrom; merged.targets=remote.targets;
+    merged.textTemplates=remote.textTemplates; merged.streak=remote.streak; merged.bests=remote.bests; }
+  merged.tombstones=mergeTombstones(local.tombstones, remote.tombstones);
+  merged.calls=mergeCalls(local.calls, remote.calls);
+  merged.leads=mergeLeads(local.leads, remote.leads, merged.tombstones);
+  merged.updatedAt=Math.max(local.updatedAt||0, remote.updatedAt||0);
+  return normalize(merged); }
+function pushState(){ if(!SYNC) return; const sig=stateSig(S); if(sig===_lastSig) return;
+  fetch(STORE,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(S)})
+    .then(function(r){ if(r&&r.ok){ _lastSig=sig; _pushFails=0; } else { _pushFails++; setTimeout(pushState, Math.min(15000,2000*_pushFails)); } })
+    .catch(function(){ _pushFails++; setTimeout(pushState, Math.min(15000,2000*_pushFails)); }); }
 function schedulePush(){ if(!SYNC) return; clearTimeout(_pushT); _pushT=setTimeout(pushState,500); }
 async function pullState(){ if(!SYNC) return; const ov=document.getElementById("overlay"); if(session||(ov&&ov.innerHTML.trim())) return;
   try{ const r=await fetch(STORE,{cache:"no-store"}); if(!r.ok) return; const d=await r.json();
-    if(d&&Array.isArray(d.leads)&&(d.updatedAt||0)>(S.updatedAt||0)&&stateSig(d)!==stateSig(S)){
-      S=normalize(d); _lastSig=stateSig(S); try{ localStorage.setItem(KEY,JSON.stringify(S)); }catch(e){} render(); } }catch(e){} }
+    if(!d||!Array.isArray(d.leads)) return;
+    if(stateSig(d)===stateSig(S)) return;                 // already in sync
+    const merged=mergeState(S,d);
+    if(stateSig(merged)!==stateSig(S)){ S=merged; try{ localStorage.setItem(KEY,JSON.stringify(S)); }catch(e){} render(); }
+    if(stateSig(d)!==stateSig(S)){ _lastSig=""; schedulePush(); } // server is behind our merged state → push to converge
+  }catch(e){} }
 async function bootSync(){ let remote=null; try{ const r=await fetch(STORE,{cache:"no-store"}); if(r.ok) remote=await r.json(); }catch(e){}
-  if(remote&&Array.isArray(remote.leads)&&remote.leads.length){ S=normalize(remote); try{ localStorage.setItem(KEY,JSON.stringify(S)); }catch(e){} _lastSig=stateSig(S); }
-  else { _lastSig=""; }
-  render();
+  if(remote&&Array.isArray(remote.leads)){ S=mergeState(S,remote); try{ localStorage.setItem(KEY,JSON.stringify(S)); }catch(e){} }
+  _lastSig=""; render(); schedulePush();
   setInterval(function(){ if(_pulling) return; _pulling=true; Promise.resolve(pullState()).finally(function(){ _pulling=false; }); }, 4000); }
 const uid=()=>"L"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+function touch(l){ if(l) l._m=Date.now(); return l; }
 
 /* ---------- helpers ---------- */
 function money(n){ n=Math.round(n||0);
@@ -356,7 +384,7 @@ const NPC={ name:"Vinny",
     s+=({appt:250,quoted:200,callback:180,contacted:90,new:120}[l.stage]||0);
     s+=Math.min(120,(l.value||0)/100); if(!l.lastContact) s+=40; return s; },
   queue(){ return S.leads.filter(l=>this.callable(l)).sort((a,b)=>this.score(b)-this.score(a)); },
-  applyOutcome(l,oc){ const now=new Date().toISOString(); l.lastContact=now; l.notes=l.notes||[];
+  applyOutcome(l,oc){ const now=new Date().toISOString(); l.lastContact=now; l._m=Date.now(); l.notes=l.notes||[];
     l.notes.unshift({at:now,body:oc.label});
     switch(oc.id){
       case "contacted": l.stage="contacted"; l.nextFollowUp=new Date(Date.now()+2*DAY).toISOString(); break;
@@ -404,6 +432,23 @@ let leadFilter="all", leadSort="priority", leadSearch="", bulkMode=false;
 let selected=new Set();
 function go(s){ screen=s; if(s!=="leads"){ bulkMode=false; selected.clear(); } render(); window.scrollTo(0,0); }
 function toast(msg){ const el=document.getElementById("toast"); el.innerHTML=`<div class="toast">${esc(msg)}</div>`; clearTimeout(el._t); el._t=setTimeout(()=>el.innerHTML="",2600); }
+/* ---------- undo for deletes (sync-safe: revival wins by timestamp) ---------- */
+let lastDeleted=null;
+function stashDeleted(leads){ try{ lastDeleted={leads:JSON.parse(JSON.stringify(leads))}; }catch(e){ lastDeleted=null; } }
+function undoDelete(){ if(!lastDeleted||!lastDeleted.leads.length) return;
+  const now=Date.now(); let n=0;
+  lastDeleted.leads.forEach(l=>{ if(!l||!l.id) return;
+    delete S.tombstones[l.id];
+    l._m=now;                                   // newer than the tombstone → survives every merge
+    if(!S.leads.some(x=>x.id===l.id)){ S.leads.push(l); n++; } });
+  lastDeleted=null; save(); render();
+  toast(n===1?"Lead restored.":n+" leads restored.");
+}
+function toastUndo(msg){ const el=document.getElementById("toast");
+  el.innerHTML=`<div class="toast">${esc(msg)} <button id="undo-del" style="margin-left:10px;background:none;border:none;color:var(--acc);font-weight:700;font-size:13px;cursor:pointer;padding:2px 4px">Undo</button></div>`;
+  const u=document.getElementById("undo-del"); if(u) u.onclick=()=>{ clearTimeout(el._t); el.innerHTML=""; undoDelete(); };
+  clearTimeout(el._t); el._t=setTimeout(()=>{ el.innerHTML=""; },7000);
+}
 
 /* ---------- native actions ---------- */
 function callLead(l,opts){ opts=opts||{}; if(!opts.silent) log(l,"_dialed");
@@ -579,7 +624,7 @@ function viewLead(){ const l=S.leads.find(x=>x.id===openLeadId); if(!l){ go("lea
       <button class="btn btn-text btn-block" data-textmenu="${l.id}">${TEXT_LBL}</button>
     </div>
   </div>
-  ${l.apptAt?`<div class="card" style="margin-top:12px"><div class="row"><div class="grow"><div class="lab">Appointment</div><div style="margin-top:4px;font-weight:600">${esc(fmtWhen(l.apptAt))}</div></div><span class="chip s-appt">Appt</span></div></div>`:""}
+  ${l.apptAt?`<div class="card" style="margin-top:12px"><div class="row"><div class="grow"><div class="lab">Appointment</div><div style="margin-top:4px;font-weight:600">${esc(fmtWhen(l.apptAt))}</div></div><span class="chip s-appt">Appt</span></div><button class="btn btn-block btn-sm" data-act="ics1" data-id="${l.id}" style="margin-top:10px">Add to phone calendar</button></div>`:""}
   ${l.nextFollowUp?`<div class="coach" style="margin-top:12px"><div class="av">V</div><div class="grow"><div class="nm">Next follow-up</div><div class="msg">${rel(l.nextFollowUp).startsWith("in")?rel(l.nextFollowUp):`<b style="color:var(--red)">${rel(l.nextFollowUp)} — overdue</b>`}</div></div></div>`:""}
   <div class="card" style="margin-top:12px">
     <div class="row" style="justify-content:space-between;margin-bottom:9px"><div class="lab">Activity &amp; notes</div><span class="tiny muted num">${leadDialCount(l)} logged</span></div>
@@ -594,6 +639,60 @@ function viewLead(){ const l=S.leads.find(x=>x.id===openLeadId); if(!l){ go("lea
   </div>`;
 }
 
+/* ---------- source performance: which lead source actually makes money ---------- */
+function sourceStats(){
+  const by=Object.create(null), leadIdx=Object.create(null);
+  S.leads.forEach(l=>{ const k=(l.source||"").trim()||"No source";
+    leadIdx[l.id]=k; (by[k]=by[k]||{n:0,won:0,banked:0,appts:0}).n++;
+    if(l.stage==="won") by[k].won++; });
+  S.calls.forEach(c=>{ const k=leadIdx[c.leadId]; if(!k) return; const e=by[k];
+    if(c.outcome==="appt") e.appts++;
+    if(c.outcome==="won") e.banked+=(c.amt||0); });
+  return Object.keys(by).map(k=>[k,by[k]])
+    .sort((a,b)=>(b[1].banked-a[1].banked)||(b[1].won-a[1].won)||(b[1].n-a[1].n)).slice(0,8);
+}
+function sourceRows(){
+  const rows=sourceStats();
+  if(!rows.length) return '<div class="muted tiny">No leads yet.</div>';
+  const onlyUntagged=rows.length===1&&rows[0][0]==="No source";
+  const maxB=Math.max(1,...rows.map(r=>r[1].banked)), useMoney=rows.some(r=>r[1].banked>0);
+  const maxN=Math.max(1,...rows.map(r=>r[1].n));
+  return rows.map(([k,e])=>{
+    const w=useMoney?Math.round(e.banked/maxB*100):Math.round(e.n/maxN*100);
+    const bits=[e.n+" lead"+(e.n===1?"":"s")]; if(e.appts) bits.push(e.appts+" appt"+(e.appts===1?"":"s")); if(e.won) bits.push(e.won+" won");
+    return `<div class="plrow"><span class="k" style="width:auto;min-width:86px">${esc(k)}</span>
+      <span class="track"><i style="width:${w}%;background:${e.banked>0?"var(--acc)":"var(--blue)"}"></i></span>
+      <span class="c num" style="width:auto">${e.banked>0?money(e.banked):bits[0]}</span></div>
+      <div class="tiny muted" style="margin:-4px 0 8px 2px">${esc(bits.join(" · "))}</div>`;
+  }).join("")+(onlyUntagged?'<div class="tiny muted" style="margin-top:6px">Tag leads with a <b>source</b> (Facebook, referral, purchased list…) and this shows which one actually pays.</div>':"");
+}
+
+/* ---------- appointments → phone calendar (.ics) ---------- */
+function icsEsc(s){ return String(s||"").replace(/\\/g,"\\\\").replace(/;/g,"\\;").replace(/,/g,"\\,").replace(/\r?\n/g,"\\n"); }
+function icsLocal(d){ d=new Date(d); const p=n=>("0"+n).slice(-2);
+  return ""+d.getFullYear()+p(d.getMonth()+1)+p(d.getDate())+"T"+p(d.getHours())+p(d.getMinutes())+"00"; }
+function icsForAppts(list){
+  const stamp=new Date().toISOString().replace(/[-:]/g,"").slice(0,15)+"Z";
+  const ev=list.map(l=>{
+    const start=new Date(l.apptAt), end=new Date(start.getTime()+30*60000);
+    const what=[l.product,l.value?money(l.value):null].filter(Boolean).join(" · ");
+    return ["BEGIN:VEVENT","UID:"+l.id+"@bagboard","DTSTAMP:"+stamp,
+      "DTSTART:"+icsLocal(start),"DTEND:"+icsLocal(end),
+      "SUMMARY:"+icsEsc("Appt: "+((l.first||"")+" "+(l.last||"")).trim()+(what?" — "+what:"")),
+      "DESCRIPTION:"+icsEsc((l.phone?"Phone: "+l.phone+"\n":"")+(l.company?l.company+"\n":"")+"From BagBoard"),
+      "BEGIN:VALARM","TRIGGER:-PT30M","ACTION:DISPLAY","DESCRIPTION:Appointment soon","END:VALARM",
+      "END:VEVENT"].join("\r\n");
+  }).join("\r\n");
+  return ["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//BagBoard//EN","CALSCALE:GREGORIAN",ev,"END:VCALENDAR"].join("\r\n");
+}
+function icsName(l){ return ("appt-"+(l.first||"lead")+"-"+dayKey(l.apptAt||Date.now())).toLowerCase().replace(/[^\w\-]+/g,"")+".ics"; }
+function futureAppts(){ const cut=startOfDay(Date.now()).getTime();
+  return S.leads.filter(l=>l.apptAt&&!DEAD.includes(l.stage)&&new Date(l.apptAt).getTime()>=cut)
+    .sort((a,b)=>new Date(a.apptAt)-new Date(b.apptAt)); }
+function exportICS(){ const list=futureAppts(); if(!list.length){ toast("No upcoming appointments to export."); return; }
+  download("bagboard-appointments-"+dayKey(Date.now())+".ics", icsForAppts(list), "text/calendar");
+  toast(list.length+" appointment"+(list.length>1?"s":"")+" exported — open the file to add them to your calendar."); }
+
 /* ---------- AGENDA ---------- */
 function viewAgenda(){
   const items=[]; S.leads.forEach(l=>{ if(DEAD.includes(l.stage)||l.stage==="won") return;
@@ -602,7 +701,8 @@ function viewAgenda(){
   if(!items.length) return `<div class="empty"><div class="em">◷</div>Nothing scheduled.<br><br>Set appointments and follow-ups from a lead, and they'll show up here.</div>`;
   const order=["Overdue","Today","Tomorrow","This week","Later"]; const groups={};
   items.forEach(it=>{ const b=bucketOf(it.when); (groups[b]=groups[b]||[]).push(it); });
-  return order.filter(g=>groups[g]).map(g=>`
+  const icsBtn=futureAppts().length?`<button class="btn btn-block btn-sm" data-act="ics" style="margin-bottom:14px">Add appointments to phone calendar (.ics)</button>`:"";
+  return icsBtn+order.filter(g=>groups[g]).map(g=>`
     <div class="grp"><div class="h ${g==="Overdue"?"over":""}"><span class="gl">${g}</span><span class="tiny muted num">${groups[g].length}</span></div>
     ${groups[g].map(it=>{ const over=new Date(it.when)<new Date()&&(g==="Overdue");
       return `<div class="ai" data-open="${it.l.id}"><span class="when ${over?"over":""}">${esc(fmtWhen(it.when))}</span>
@@ -639,6 +739,10 @@ function viewStats(){
     <div class="lab" style="margin-bottom:12px">Pipeline by stage</div>
     <div class="pl">${plStages.map(([k,lb,c])=>{ const n=stageCounts[k]||0;
       return `<div class="plrow"><span class="k">${lb}</span><span class="track"><i style="width:${Math.round(n/maxS*100)}%;background:${c}"></i></span><span class="c num">${n}</span></div>`; }).join("")}</div>
+  </div>
+  <div class="card" style="margin-top:11px">
+    <div class="lab" style="margin-bottom:12px">Where the money comes from</div>
+    ${sourceRows()}
   </div>
   <div class="two" style="margin-top:11px">
     <div class="stat"><div class="lab">Closed (all-time)</div><div class="v num">${wonAll.length}</div></div>
@@ -844,7 +948,7 @@ function suggestText(l,ocId,after){ const body=NPC.text(l,ocId);
 function stageSheet(l,bulk){ return `<h2>${bulk?`Move ${selected.size} lead${selected.size>1?"s":""} to…`:`Move ${esc(l.first)} to…`}</h2>
   ${Object.keys(STAGE).map(s=>`<button class="btn btn-block" style="margin-bottom:8px;justify-content:flex-start" data-setstage="${bulk?"_bulk":l.id}" data-s="${s}"><span class="chip s-${s}">${STAGE[s]}</span></button>`).join("")}`; }
 function noteSheet(id){ sheet(`<h2>Add note</h2><div class="field"><textarea id="note-body" placeholder="What happened?"></textarea></div><button class="btn btn-primary btn-block btn-lg" id="note-save">Save note</button>`);
-  document.getElementById("note-save").onclick=()=>{ const l=S.leads.find(x=>x.id===id),v=val("note-body"); if(l&&v){ l.notes=l.notes||[]; l.notes.unshift({at:new Date().toISOString(),body:v}); save(); } closeSheet(); render(); }; }
+  document.getElementById("note-save").onclick=()=>{ const l=S.leads.find(x=>x.id===id),v=val("note-body"); if(l&&v){ l.notes=l.notes||[]; l.notes.unshift({at:new Date().toISOString(),body:v}); touch(l); save(); } closeSheet(); render(); }; }
 
 /* ---------- import ---------- */
 function importSheet(){ return `<h2>Paste leads</h2>
@@ -863,16 +967,31 @@ function pNorm(s){ let d=pDigits(s); if(d.length===11&&d[0]==="1") d=d.slice(1);
 function looksPhone(s){ const raw=String(s==null?"":s).trim(); if(!raw||/@/.test(raw)) return false;
   if(/^\d{4}[-/]\d{1,2}[-/]\d{1,2}/.test(raw)||/^\d{1,2}[-/]\d{1,2}[-/]\d{2,4}/.test(raw)) return false;
   const d=pDigits(raw); return d.length===10||(d.length===11&&d[0]==="1"); }
+function looksDate(s){ const raw=String(s==null?"":s).trim(); return /^\d{4}[-/.]\d{1,2}[-/.]\d{1,2}\b/.test(raw)||/^\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4}\b/.test(raw); }
+/* A deal value — never a phone number, a date, or an absurd magnitude. */
+function parseMoney(s){ const raw=String(s==null?"":s).trim(); if(!raw) return 0;
+  if(looksPhone(raw)||looksDate(raw)) return 0;
+  const d=pDigits(raw); if(d.length>=10) return 0; /* phone/id-length integer, not money */
+  const v=Math.round(parseFloat(raw.replace(/[^0-9.]/g,""))||0); return (v>0&&v<=1e8)?v:0; }
+/* Split a name, handling "Last, First" ordering and stray commas. */
+function parseName(s){ s=String(s==null?"":s).trim(); if(!s) return {first:"",last:""};
+  const ci=s.indexOf(",");
+  if(ci>=0){ const lastPart=s.slice(0,ci).trim(), firstPart=s.slice(ci+1).trim();
+    if(lastPart && firstPart && !/\s/.test(lastPart)) return {first:firstPart, last:lastPart}; }
+  const parts=s.replace(/,/g," ").split(/\s+/).filter(Boolean); return {first:parts[0]||"", last:parts.slice(1).join(" ")}; }
 function mapCols(h){ const find=(pats,pref)=>{ let best=-1,bs=-1;
     h.forEach((c,i)=>pats.forEach((p,pi)=>{ if(c.indexOf(p)>=0){ const sc=((pref&&pref.some(x=>c.indexOf(x)>=0))?100:0)+(20-pi); if(sc>bs){bs=sc;best=i;} } })); return best; };
-  return { phone:find(["mobile","cell","phone","tel","contact number","primary","number"],["mobile","cell"]),
+  const m={ phone:find(["mobile","cell","phone","tel","contact number","primary","number"],["mobile","cell"]),
     first:find(["first","fname","given"]), last:find(["last","lname","surname","family"]),
     name:find(["full name","name","contact","client","lead"]),
     company:find(["company","business","organization","organisation","account"]),
     product:find(["product","interest","plan","coverage"]),
     value:find(["value","amount","premium","budget","deal","price"]),
     source:find(["lead source","source","campaign","origin","referral"]),
-    notes:find(["notes","note","comment","remark","description","memo"]) }; }
+    notes:find(["notes","note","comment","remark","description","memo"]) };
+  /* Don't let a phone/zip column masquerade as the deal value (e.g. Google's "Phone 1 - Value"). */
+  if(m.value>=0 && /phone|mobile|cell|tel|fax|number|zip|postal|\bext\b/.test(h[m.value]||"")) m.value=-1;
+  return m; }
 function importText(text){ const rows=parseCSV(text).filter(r=>r.some(c=>String(c).trim()));
   if(!rows.length) return {added:0,skipped:0,dupes:0};
   const orig=rows[0].map(x=>String(x==null?"":x).trim());
@@ -890,10 +1009,10 @@ function importText(text){ const rows=parseCSV(text).filter(r=>r.some(c=>String(
       if(phoneIdx>=0){ phone=cell(phoneIdx); used[phoneIdx]=1; }
       if(idx.first>=0){ first=cell(idx.first); used[idx.first]=1; }
       if(idx.last>=0){ last=cell(idx.last); used[idx.last]=1; }
-      if(!first&&!last&&idx.name>=0){ const p=cell(idx.name).split(/\s+/).filter(Boolean); first=p[0]||""; last=p.slice(1).join(" "); }
+      if(!first&&!last&&idx.name>=0){ const pn=parseName(cell(idx.name)); first=pn.first; last=pn.last; }
       if(idx.name>=0) used[idx.name]=1;
       if(idx.product>=0){ product=cell(idx.product); used[idx.product]=1; }
-      if(idx.value>=0){ value=Math.round(parseFloat(cell(idx.value).replace(/[^0-9.]/g,""))||0); used[idx.value]=1; }
+      if(idx.value>=0){ value=parseMoney(cell(idx.value)); used[idx.value]=1; }
       if(idx.company>=0){ company=cell(idx.company); used[idx.company]=1; }
       if(idx.source>=0){ source=cell(idx.source); used[idx.source]=1; }
       if(idx.notes>=0){ noteLead=cell(idx.notes); used[idx.notes]=1; }
@@ -901,9 +1020,9 @@ function importText(text){ const rows=parseCSV(text).filter(r=>r.some(c=>String(
       phoneIdx=r.findIndex(c=>looksPhone(c)); if(phoneIdx<0){ skipped++; return; } phone=r[phoneIdx]; used[phoneIdx]=1;
       const nameParts=[];
       r.slice(0,phoneIdx).forEach((x,i)=>{ x=String(x).trim(); if(x&&!/@/.test(x)&&pDigits(x).length<7&&!stop.test(x)){ nameParts.push(x); used[i]=1; } });
-      const nm=nameParts.join(" ").split(/\s+/).filter(Boolean); first=nm[0]||"Lead"; last=nm.slice(1).join(" ");
-      for(let i=phoneIdx+1;i<r.length;i++){ const x=String(r[i]).trim(); if(!product&&x&&!/@/.test(x)&&pDigits(x).length<7){ product=x; used[i]=1; break; } }
-      for(let i=phoneIdx+1;i<r.length;i++){ if(used[i]) continue; const v=Math.round(parseFloat(String(r[i]).replace(/[^0-9.]/g,""))||0); if(v>0){ value=v; used[i]=1; break; } }
+      const pn=parseName(nameParts.join(" ")); first=pn.first||"Lead"; last=pn.last;
+      for(let i=phoneIdx+1;i<r.length;i++){ const x=String(r[i]).trim(); if(!product&&x&&!/@/.test(x)&&pDigits(x).length<7&&!stop.test(x)&&!looksDate(x)){ product=x; used[i]=1; break; } }
+      for(let i=phoneIdx+1;i<r.length;i++){ if(used[i]||looksPhone(r[i])) continue; const v=parseMoney(r[i]); if(v>0){ value=v; used[i]=1; break; } }
     }
     const np=pNorm(phone); if(np.length<10){ skipped++; return; }
     if(seen[np]){ dupes++; return; } seen[np]=1;
@@ -921,7 +1040,7 @@ function importSummary(res){ let m="Imported "+res.added+" lead"+(res.added!==1?
   if(x.length) m+=" ("+x.join(", ")+" skipped)"; return m+"."; }
 function doImport(){ const raw=(document.getElementById("imp")||{}).value||""; if(!raw.trim()){ toast("Nothing to import"); return; }
   const res=importText(raw); save(); closeSheet(); go("leads"); toast(importSummary(res)); }
-function newLead(o){ return Object.assign({id:uid(),first:"",last:"",phone:"",product:"",value:0,source:"",company:"",stage:"new",notes:[],lastContact:null,apptAt:null,nextFollowUp:new Date(Date.now()+HOUR).toISOString(),createdAt:new Date().toISOString()},o); }
+function newLead(o){ return Object.assign({id:uid(),first:"",last:"",phone:"",product:"",value:0,source:"",company:"",stage:"new",notes:[],lastContact:null,apptAt:null,nextFollowUp:new Date(Date.now()+HOUR).toISOString(),createdAt:new Date().toISOString(),_m:Date.now()},o); }
 
 /* ---------- export / backup / restore ---------- */
 function leadsToCSV(list){ const cols=["first","last","phone","product","value","stage","source","company","apptAt","nextFollowUp","createdAt"];
@@ -969,18 +1088,20 @@ function bind(){ const root=document.body;
     else if(a==="dismissnotice"){ S.noticeDismissed=true; save(); render(); }
     else if(a==="snoozebackup"){ S.backupSnooze=Date.now()+7*DAY; save(); render(); }
     else if(a==="savedialfrom"){ S.dialFrom=(val("dialfrom")||"").trim(); save(); toast("Saved your dialing number."); }
-    else if(a==="addleadnote"){ const l=S.leads.find(x=>x.id===b.dataset.id); const v=val("lead-note"); if(l&&v){ l.notes=l.notes||[]; l.notes.unshift({at:new Date().toISOString(),body:v}); save(); toast("Note saved."); render(); } else toast("Type a note first"); }
-    else if(a==="sesnote"){ if(session){ const l=S.leads.find(x=>x.id===session.ids[session.idx]); const v=val("ses-note"); if(l&&v){ l.notes=l.notes||[]; l.notes.unshift({at:new Date().toISOString(),body:v}); save(); toast("Note saved."); renderDialer(); } else toast("Type a note first"); } }
+    else if(a==="addleadnote"){ const l=S.leads.find(x=>x.id===b.dataset.id); const v=val("lead-note"); if(l&&v){ l.notes=l.notes||[]; l.notes.unshift({at:new Date().toISOString(),body:v}); touch(l); save(); toast("Note saved."); render(); } else toast("Type a note first"); }
+    else if(a==="sesnote"){ if(session){ const l=S.leads.find(x=>x.id===session.ids[session.idx]); const v=val("ses-note"); if(l&&v){ l.notes=l.notes||[]; l.notes.unshift({at:new Date().toISOString(),body:v}); touch(l); save(); toast("Note saved."); renderDialer(); } else toast("Type a note first"); } }
     else if(a==="dedupe") dedupe();
     else if(a==="createlead"){ const d=readLeadForm(); if(!d.first||!digits(d.phone)){ toast("Need a name and phone"); return; } S.leads.push(newLead(d)); save(); closeSheet(); go("leads"); toast(`Added ${d.first}.`); }
-    else if(a==="updatelead"){ const l=S.leads.find(x=>x.id===b.dataset.id); if(l) Object.assign(l,readLeadForm()); save(); closeSheet(); render(); }
+    else if(a==="updatelead"){ const l=S.leads.find(x=>x.id===b.dataset.id); if(l){ Object.assign(l,readLeadForm()); touch(l); } save(); closeSheet(); render(); }
     else if(a==="savesettings") saveSettings();
     else if(a==="toggle-sound"){ S.sound=(S.sound===false); save(); if(S.sound) Sound.play("contact"); render(); }
     else if(a==="loadsample") loadSample();
-    else if(a==="wipe"){ if(confirm("Erase ALL leads and data on this device? This can't be undone.")){ S=blankState(); save(); go("dashboard"); } }
+    else if(a==="wipe"){ if(confirm("Erase ALL leads and data on this device? This can't be undone.")){ const tomb={},now=Date.now(); S.leads.forEach(l=>{ if(l&&l.id) tomb[l.id]=now; }); S=blankState(); S.tombstones=tomb; save(); go("dashboard"); } }
     else if(a==="toggleselect"){ bulkMode=!bulkMode; selected.clear(); render(); }
     else if(a==="bulkstage"){ if(!selected.size){ toast("Select some leads first"); return; } sheet(stageSheet(null,true)); }
-    else if(a==="bulkdelete"){ if(!selected.size){ toast("Select some leads first"); return; } if(confirm("Delete "+selected.size+" lead(s)?")){ S.leads=S.leads.filter(l=>!selected.has(l.id)); selected.clear(); bulkMode=false; save(); go("leads"); toast("Deleted."); } }
+    else if(a==="bulkdelete"){ if(!selected.size){ toast("Select some leads first"); return; } if(confirm("Delete "+selected.size+" lead(s)?")){ const now=Date.now(); stashDeleted(S.leads.filter(l=>selected.has(l.id))); selected.forEach(id=>{ S.tombstones[id]=now; }); const n=selected.size; S.leads=S.leads.filter(l=>!selected.has(l.id)); selected.clear(); bulkMode=false; save(); go("leads"); toastUndo("Deleted "+n+" lead"+(n>1?"s":"")+"."); } }
+    else if(a==="ics") exportICS();
+    else if(a==="ics1"){ const l=S.leads.find(x=>x.id===b.dataset.id); if(l&&l.apptAt){ download(icsName(l),icsForAppts([l]),"text/calendar"); toast("Calendar file saved — open it to add the appointment."); } }
   });
 
   root.querySelectorAll("[data-copynum]").forEach(b=>b.onclick=()=>{ const v=b.dataset.copynum; if(v){ copyText(v,v+" copied — dial it on your phone."); Sound.play("tick"); } });
@@ -990,10 +1111,10 @@ function bind(){ const root=document.body;
   root.querySelectorAll("[data-note]").forEach(b=>b.onclick=()=>noteSheet(b.dataset.note));
   root.querySelectorAll("[data-edit]").forEach(b=>b.onclick=()=>{ const l=S.leads.find(x=>x.id===b.dataset.edit); if(l) sheet(leadForm(l)); });
   root.querySelectorAll("[data-stage]").forEach(b=>b.onclick=()=>{ const l=S.leads.find(x=>x.id===b.dataset.stage); if(l) sheet(stageSheet(l,false)); });
-  root.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>{ const id=b.dataset.del; if(confirm("Delete this lead?")){ S.leads=S.leads.filter(l=>l.id!==id); save(); go("leads"); toast("Deleted."); } });
+  root.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>{ const id=b.dataset.del; if(confirm("Delete this lead?")){ stashDeleted(S.leads.filter(l=>l.id===id)); S.tombstones[id]=Date.now(); S.leads=S.leads.filter(l=>l.id!==id); save(); go("leads"); toastUndo("Deleted."); } });
   root.querySelectorAll("[data-setstage]").forEach(b=>b.onclick=()=>{ const s=b.dataset.s;
-    if(b.dataset.setstage==="_bulk"){ S.leads.forEach(l=>{ if(selected.has(l.id)) l.stage=s; }); selected.clear(); bulkMode=false; save(); closeSheet(); go("leads"); toast("Updated."); }
-    else { const l=S.leads.find(x=>x.id===b.dataset.setstage); if(l) l.stage=s; save(); closeSheet(); render(); } });
+    if(b.dataset.setstage==="_bulk"){ S.leads.forEach(l=>{ if(selected.has(l.id)){ l.stage=s; touch(l); } }); selected.clear(); bulkMode=false; save(); closeSheet(); go("leads"); toast("Updated."); }
+    else { const l=S.leads.find(x=>x.id===b.dataset.setstage); if(l){ l.stage=s; touch(l); } save(); closeSheet(); render(); } });
   root.querySelectorAll("[data-closesheet]").forEach(b=>b.onclick=closeSheet);
   root.querySelectorAll("[data-sescall]").forEach(b=>b.onclick=()=>{ const l=S.leads.find(x=>x.id===b.dataset.sescall); if(l) callLead(l,{silent:true}); });
   root.querySelectorAll("[data-sestext]").forEach(b=>b.onclick=()=>{ const l=S.leads.find(x=>x.id===b.dataset.sestext); if(l) textLead(l); });
