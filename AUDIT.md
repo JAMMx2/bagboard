@@ -1,6 +1,6 @@
 # Pre-Release Security & Quality Audit — BagBoard
 
-**Date:** 2026-06-30  **Target:** `index.html` (single-file app, 71228 bytes) + Windows launcher
+**Date:** 2026-06-30 (addenda below)  **Target:** `index.html` (single-file app, 71228 bytes at audit) + Windows launcher
 **Method:** automated scans (network/secrets/sinks/deps) + an independent line-by-line security & code review + an automated test suite (21 functional checks, all passing).
 
 ## Verdict
@@ -49,3 +49,12 @@ still fully offline (no network); (2) in shared mode leads are readable/writable
 the link (token gate only, not strong auth), so it is documented as trusted-network-only; (3) the
 launcher still serves the single app for any non-API path (no path traversal), and a POST only ever
 overwrites the one data file. No third-party code or external network calls were introduced.
+
+## v1.3.0 addendum (2026-10)
+Both residual recommendations above are now implemented: bottom sheets carry `role="dialog"` /
+`aria-modal`, trap focus, restore focus on close and close on Escape; saved state carries a schema
+version (`v`) and is upgraded by `migrate()` on every load and restore. New user-controlled fields
+added this release (tags, call scripts, calling-window hours, scheduled callback times) all pass
+through `esc()` before reaching `innerHTML`; the area-code table is static data compiled in the file.
+Local-time lookups use the browser's built-in `Intl.DateTimeFormat` (no network, no dependency).
+No new sinks, network calls or third-party code were introduced; the LAN-sync posture is unchanged.

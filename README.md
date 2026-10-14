@@ -5,9 +5,9 @@
 **A single-file call CRM. No login, no servers, no monthly fees.**
 Your leads live in your own browser; you dial them from your own phone.
 
-[![Download](https://img.shields.io/badge/Download-v1.2.0-2ea44f?style=for-the-badge)](https://github.com/JAMMx2/bagboard/releases/latest)
+[![Download](https://img.shields.io/badge/Download-v1.3.0-2ea44f?style=for-the-badge)](https://github.com/JAMMx2/bagboard/releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-3b82f6?style=for-the-badge)](LICENSE)
-![Single file](https://img.shields.io/badge/single_file-~89_KB-6b7280?style=for-the-badge)
+![Single file](https://img.shields.io/badge/single_file-~114_KB-6b7280?style=for-the-badge)
 ![No dependencies](https://img.shields.io/badge/dependencies-none-2ea44f?style=for-the-badge)
 
 ![BagBoard preview](preview.svg)
@@ -64,7 +64,10 @@ macOS / Linux: `curl -fsSL https://raw.githubusercontent.com/JAMMx2/bagboard/mai
 - Hand-dial friendly: tap-to-call on a phone; on a computer it copies the number to dial by hand and copies a ready-to-send follow-up text.
 - **Rapid Dial** mode: blitz a whole list — big number, tap to copy, Spacebar to advance, keys 1-5 to log an outcome, and optional hands-free auto-advance.
 - **Use it on your phone**: turn on Wi-Fi sharing and open BagBoard on your phone (same network) to dial numbers straight from there.
-- Search, sort, filter, multi-select, de-dupe. An agenda of what's due. Stats: contact/appointment rates, a 7-day chart, pipeline, and personal bests.
+- **Knows where your leads are**: reads the area code to show each lead's local time and state, flags anyone outside your calling hours, and sorts them to the back of the queue.
+- **Callbacks on your terms**: pick *when* (in an hour, tomorrow 9 AM, exact time) as you log the call; a "due now" queue on the dashboard runs just the leads whose time has come.
+- Tags, call scripts per stage, keyboard shortcuts for every outcome, and one-tap **Undo** for anything you didn't mean to do.
+- Search, sort, filter (tag, state, call-now), multi-select, de-dupe. An agenda of what's due. Stats: contact/appointment rates, a 7-day chart, pipeline, personal bests, and a daily CSV export.
 - Stays motivating — a daily-goal ring, streaks, in-session momentum, and subtle (toggleable) sound cues.
 - CSV import/export and one-click local backup. **Nothing ever leaves your machine.**
 
